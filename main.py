@@ -166,11 +166,12 @@ MINIGAME_MUSIC_PATH = os.path.join("assets", "minigame_rain.mp3")
 FIRE_MUSIC_PATH = os.path.join("assets", "firefirefire.MP3")
 GAMEOVER_MUSIC_PATH = os.path.join("assets", "gameover.mp3")
 AMBIENCE_BGM_PATH = os.path.join("assets", "ambiencesound.mp3")
+SYSTEM_BGM_PATH = os.path.join("assets", "systemsound.MP3")
 
 def play_music_track(path, fade_ms=0, loops=-1):
     try:
         print(f"[play_music_track] Request to play: {path} (Current: {settings.current_music_path})")
-        vol = settings.volume * 0.8 if path == MINIGAME_MUSIC_PATH else settings.volume
+        vol = settings.volume * 0.8 if path in [MINIGAME_MUSIC_PATH, SYSTEM_BGM_PATH] else settings.volume
         if settings.current_music_path == path:
             print("[play_music_track] Already playing this track. Unpausing.")
             pygame.mixer.music.unpause()
@@ -798,7 +799,7 @@ def exit_app():
 def set_volume(val):
     settings.volume = val
     try:
-        music_vol = val * 0.8 if settings.current_music_path == MINIGAME_MUSIC_PATH else val
+        music_vol = val * 0.8 if settings.current_music_path in [MINIGAME_MUSIC_PATH, SYSTEM_BGM_PATH] else val
         pygame.mixer.music.set_volume(music_vol)
     except:
         pass
@@ -1742,6 +1743,8 @@ def main():
                                 game_inst.reset()
                                 if state_name == "FIRE_GAME":
                                     play_music_track(FIRE_MUSIC_PATH, fade_ms=0)
+                                elif state_name == "ROBOT_GAME":
+                                    play_music_track(SYSTEM_BGM_PATH, fade_ms=0)
                                 else:
                                     play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
                                 play_sfx("sfx_change")
@@ -1775,6 +1778,11 @@ def main():
         elif settings.state == "METEOR_GAME":
             meteor_game.handle_input()
             meteor_game.update()
+            if meteor_game.state == "LOST" and settings.current_music_path != GAMEOVER_MUSIC_PATH:
+                try:
+                    play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0)
+                except Exception as e:
+                    print(f"게임오버 음악 재생 실패: {e}")
         elif settings.state == "RESOURCE_GAME":
             resources_game.handle_input()
             resources_game.update()
@@ -1783,6 +1791,11 @@ def main():
                 game_inst = stage_mappings[settings.state]
                 game_inst.handle_input()
                 game_inst.update()
+                if game_inst.state == "FAIL" and settings.current_music_path != GAMEOVER_MUSIC_PATH:
+                    try:
+                        play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0)
+                    except Exception as e:
+                        print(f"게임오버 음악 재생 실패: {e}")
             
         # 1. 배경 (픽셀 아트 화면) 및 전환 처리
         if settings.state == "MENU":

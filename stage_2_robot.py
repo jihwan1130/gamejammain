@@ -45,6 +45,15 @@ class RogueRobotGame(BaseRogueRobotGame):
         except Exception as e:
             print(f"로봇 GIF 에셋 로드 실패: {e}")
             
+        # 3. 총 발사 효과음 로드
+        self.gun2_sfx = None
+        try:
+            gun2_path = os.path.join("assets", "gun2.MP3")
+            if os.path.exists(gun2_path):
+                self.gun2_sfx = pygame.mixer.Sound(gun2_path)
+        except Exception as e:
+            print(f"gun2.MP3 로드 실패: {e}")
+            
     def reset(self):
         self.robots = []
         size = 112  # 로봇 캐릭터 크기
@@ -166,6 +175,38 @@ class RogueRobotGame(BaseRogueRobotGame):
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
+            
+    def handle_event(self, event):
+        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        if self.state != "PLAYING":
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    play_sfx("sfx_end")
+                    go_to_minigames()
+                elif event.key == pygame.K_RETURN:
+                    self.reset()
+                    if keyboard_sfx:
+                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.play()
+            return
+            
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                play_sfx("sfx_end")
+                go_to_minigames()
+                
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.gun2_sfx:
+                self.gun2_sfx.set_volume(settings.volume)
+                self.gun2_sfx.play()
+                
+            mx, my = event.pos
+            vmx = int(mx * 1000 / settings.width)
+            vmy = int(my * 700 / settings.height)
+            for r in self.robots[:]:
+                if r["rect"].collidepoint((vmx, vmy)):
+                    self.robots.remove(r)
+                    break
 
 if __name__ == "__main__":
     import sys
