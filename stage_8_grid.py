@@ -1,7 +1,15 @@
-import pygame, random, sys
+import pygame, random, sys, os
 
 class EnergyGridGame:
     def __init__(self):
+        self.bg_img = None
+        try:
+            bg_path = os.path.join("assets", "spacex.png")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
+        except Exception as e:
+            print(f"spacex.png 로드 실패: {e}")
         self.reset()
         
     def reset(self):
@@ -65,7 +73,14 @@ class EnergyGridGame:
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
-        virtual_surf.fill((5, 20, 20))
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
+            # 가독성을 높이기 위해 어두운 반투명 오버레이 추가
+            dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            dim_overlay.fill((5, 20, 20, 160))  # R, G, B, Alpha
+            virtual_surf.blit(dim_overlay, (0, 0))
+        else:
+            virtual_surf.fill((5, 20, 20))
         
         # Fonts
         font_main = pygame.font.SysFont("malgungothic", 24, bold=True)

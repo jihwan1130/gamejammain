@@ -1,7 +1,27 @@
-import pygame, random, sys
+import pygame, random, sys, os
 
 class HighVoltageSparkDodgeGame:
     def __init__(self):
+        self.thunder_img = None
+        self.thunder2_img = None
+        self.bg_img = None
+        try:
+            t_path = os.path.join("assets", "thunder.png")
+            t2_path = os.path.join("assets", "thunder2.png")
+            # 검은색 배경을 투명하게 날려주기 위해 convert() 후 set_colorkey((0, 0, 0)) 적용
+            if os.path.exists(t_path):
+                self.thunder_img = pygame.image.load(t_path).convert()
+                self.thunder_img.set_colorkey((0, 0, 0))
+            if os.path.exists(t2_path):
+                self.thunder2_img = pygame.image.load(t2_path).convert()
+                self.thunder2_img.set_colorkey((0, 0, 0))
+                
+            bg_path = os.path.join("assets", "thunderback.jpg")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
+        except Exception as e:
+            print(f"이미지 에셋 로드 실패: {e}")
         self.reset()
         
     def reset(self):
@@ -20,19 +40,22 @@ class HighVoltageSparkDodgeGame:
             # Spawn sparks
             self.spawn_timer += 1
             if self.spawn_timer % 12 == 0:
-                self.sparks.append(pygame.Rect(random.randint(60, 920), 120, 20, 40))
+                self.sparks.append({
+                    "rect": pygame.Rect(random.randint(60, 920), 120, 30, 60),
+                    "type": random.choice(["thunder", "thunder2"])
+                })
                 
             p_rect = pygame.Rect(self.player_x - 20, 560, 40, 40)
             
             # Update sparks and check collisions
             for sp in self.sparks[:]:
-                sp.y += 9
-                if p_rect.colliderect(sp):
+                sp["rect"].y += 9
+                if p_rect.colliderect(sp["rect"]):
                     self.state = "FAIL"
                     from main import play_sfx
                     play_sfx("sfx_click")
                     break
-                if sp.y > 640:
+                if sp["rect"].y > 640:
                     self.sparks.remove(sp)
                     
             if self.elapsed_time >= self.limit_time:
@@ -41,9 +64,9 @@ class HighVoltageSparkDodgeGame:
     def handle_input(self):
         if self.state == "PLAYING":
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_a]:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
                 self.player_x = max(50, self.player_x - 9)
-            if keys[pygame.K_d]:
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
                 self.player_x = min(950, self.player_x + 9)
                 
     def handle_event(self, event):
@@ -71,7 +94,14 @@ class HighVoltageSparkDodgeGame:
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
-        virtual_surf.fill((25, 20, 5))
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
+            # 가독성을 높이기 위해 어두운 반투명 오버레이 추가
+            dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            dim_overlay.fill((20, 15, 10, 160))  # R, G, B, Alpha
+            virtual_surf.blit(dim_overlay, (0, 0))
+        else:
+            virtual_surf.fill((25, 20, 5))
         
         # Fonts
         font_main = pygame.font.SysFont("malgungothic", 24, bold=True)
@@ -84,11 +114,16 @@ class HighVoltageSparkDodgeGame:
         
         # Draw sparks
         for sp in self.sparks:
-            pygame.draw.rect(virtual_surf, (235, 210, 40), sp)
-            pygame.draw.rect(virtual_surf, WHITE, sp, 1)
+            img = self.thunder_img if sp["type"] == "thunder" else self.thunder2_img
+            if img:
+                scaled_img = pygame.transform.scale(img, (sp["rect"].width, sp["rect"].height))
+                virtual_surf.blit(scaled_img, sp["rect"])
+            else:
+                pygame.draw.rect(virtual_surf, (235, 210, 40), sp["rect"])
+                pygame.draw.rect(virtual_surf, WHITE, sp["rect"], 1)
             
         draw_terminal_hud(virtual_surf, "ELECTRIC SPARKS EVASION MANEUVER", self.limit_time, self.elapsed_time, (235, 210, 40))
-        txt_desc = font_sub.render("ELECTRICIAN MISSION: [A] / [D] 키로 좌우 조종하여 상단에서 떨어지는 전류 스파크 피격 방지!", True, WHITE)
+        txt_desc = font_sub.render("ELECTRICIAN MISSION: [A]/[D] 또는 [방향키]로 좌우 조종하여 전류 스파크를 회피하십시오!", True, WHITE)
         virtual_surf.blit(txt_desc, (40, 60))
         
         if self.state != "PLAYING":

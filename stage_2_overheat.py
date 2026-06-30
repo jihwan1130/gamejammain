@@ -10,6 +10,7 @@ class CoreThermalStabilizerGame:
         self.elapsed_time = 0
         self.limit_time = 15.0
         self.state = "PLAYING" # PLAYING, SUCCESS, FAIL
+        self.press_count = 0  # 키 연타 횟수 카운터
         
     def update(self):
         if self.state == "PLAYING":
@@ -53,6 +54,10 @@ class CoreThermalStabilizerGame:
             if event.key == pygame.K_ESCAPE:
                 play_sfx("sfx_end")
                 go_to_minigames()
+            elif event.key in [pygame.K_a, pygame.K_d]:
+                self.press_count += 1
+                if self.press_count >= 18:
+                    self.state = "SUCCESS"
                 
     def draw(self, surface):
         from visual_effects import draw_terminal_hud
@@ -77,7 +82,7 @@ class CoreThermalStabilizerGame:
         
         # Draw HUD info
         draw_terminal_hud(virtual_surf, "CORE THERMAL STABILIZER SEQUENCE", self.limit_time, self.elapsed_time, (220, 50, 40))
-        txt_guide = font_sub.render("DEVELOPER JOB DETECTED: 유지 조작 보정 가동! [A] / [D] 키로 녹색 마커 중심 유지", True, (245, 240, 235))
+        txt_guide = font_sub.render("DEVELOPER JOB: [A]/[D] 키로 중심 유지 (18회 키 입력 시 긴급 수동 안정화 가능)", True, (245, 240, 235))
         virtual_surf.blit(txt_guide, (40, 60))
         
         if self.state != "PLAYING":

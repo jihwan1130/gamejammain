@@ -9,16 +9,18 @@ import json
 from stage_10_rocket import MeteorGame
 from resources_mini import ResourcesGame
 from stage_1_fire import FireGame
-from stage_1_robot import RogueRobotGame
+from stage_2_robot import RogueRobotGame
 from stage_2_gravity import GravityHullRepairGame
 from stage_2_overheat import CoreThermalStabilizerGame
 from stage_3_riot import RiotPacificationGame
-from stage_4_life import LifeSupportGame
+# stage_4_life.py was deprecated and integrated into stage_6_patient.py
 from stage_4_nav import StellarMemoryGame
 from stage_6_electric import HighVoltageSparkDodgeGame
 from stage_6_patient import PathogenQuarantineGame
 from stage_8_grid import EnergyGridGame
 from stage_9_landing import ReverseThrustDecelerationGame
+from aim import CrewCalmGame
+from spin import CrankLandingGame
 
 # 초기화
 pygame.init()
@@ -639,23 +641,37 @@ class ScanlineEffect:
 # 레트로 모니터 노이즈 라인 (지속적으로 부드럽게 한 줄씩 내려가는 화면 리프레시선)
 class CRTBeamEffect:
     def __init__(self):
-        # 여러 개의 아날로그 스캔 빔 정의 (다양한 속도, 높이, 투명도로 아날로그 롤링 잦게 연출)
-        self.beams = [
-            {"y": 0, "speed": 0.8, "height": 12, "color": (255, 120, 30, 16)},
-            {"y": -200, "speed": 1.2, "height": 6, "color": (255, 120, 30, 24)},  # 더 얇고 빠른 글리치성 빔
-            {"y": -450, "speed": 0.5, "height": 20, "color": (255, 120, 30, 8)}   # 더 넓고 느리게 깔리는 음극선 빔
-        ]
+        # 반투명 회색 톤 색상 정의 (아날로그 노이즈 연출)
+        self.color = (200, 200, 200)
         
     def draw(self, surface):
-        for beam in self.beams:
-            beam["y"] += beam["speed"]
-            if beam["y"] > settings.height:
-                beam["y"] = -beam["height"] - 50  # 화면 위쪽에서 재출발
+        import random
+        # 1. 지지직거리는 얇은 가로 노이즈 (매 프레임 1~3개의 무작위 가로선 생성)
+        num_glitches = random.randint(1, 3)
+        for _ in range(num_glitches):
+            if random.random() < 0.35:
+                h = random.randint(1, 5)  # 1~5px의 얇은 높이
+                y = random.randint(0, settings.height - h)
+                alpha = random.randint(10, 30)  # 반투명 농도
                 
-            if beam["y"] >= 0:
-                beam_surf = pygame.Surface((settings.width, beam["height"]), pygame.SRCALPHA)
-                beam_surf.fill(beam["color"])
-                surface.blit(beam_surf, (0, int(beam["y"])))
+                beam_surf = pygame.Surface((settings.width, h), pygame.SRCALPHA)
+                beam_surf.fill((*self.color, alpha))
+                surface.blit(beam_surf, (0, y))
+                
+        # 2. 가끔 넓게 깜빡이는 옅은 노이즈 밴드
+        if random.random() < 0.05:
+            h = random.randint(15, 60)
+            y = random.randint(0, settings.height - h)
+            alpha = random.randint(5, 12)
+            beam_surf = pygame.Surface((settings.width, h), pygame.SRCALPHA)
+            beam_surf.fill((*self.color, alpha))
+            surface.blit(beam_surf, (0, y))
+            
+        # 3. 화면의 미세한 플리커링(밝기 흔들림) 효과
+        if random.random() < 0.07:
+            flicker_surf = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
+            flicker_surf.fill((*self.color, random.randint(3, 7)))
+            surface.blit(flicker_surf, (0, 0))
 
 # 레트로 스타일 우주선 터미널 로그
 class RetroConsole:
@@ -870,12 +886,14 @@ GAMES_LIST = [
     ("GRAVITY ANOMALY ESCAPE", "격벽 중력장 복구", ["화면에 무작위로 표시되는", "키를 신속히 눌러", "중력 변동을 제어합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("REACTOR REPAIR", "원자로 과열 냉각", ["A / D 키를 조작하여", "과부하된 원자로 코어를", "안전 구역에 유지시킵니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("RIOT PACIFICATION", "선내 폭동 평화 설득", ["선원들의 요구 사항 단어를", "타이핑하여 이성적인", "타협을 이끌어냅니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
-    ("OXYGEN FILL", "산소 공급 장치 가동", ["산소 공급 장치를", "정상화하기 위해", "SPACE 키를 연타합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("PATHOGEN QUARANTINE", "바이러스 세포 격리", ["하강하는 바이러스가", "매칭 라인에 닿을 때", "SPACE 키로 박멸합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("NAV SYSTEM CALIB", "항법 장치 메모리 보정", ["메모리 노드의 심볼들을", "매칭하여 최적의", "도약 항로를 정렬합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("SHIELD CHARGE", "방어막 고전압 충전", ["A / D 키로 충전기를 조작해", "낙뢰 스파크를 피하며", "에너지를 공급받습니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("PATHOGEN QUARANTINE", "바이러스 세포 격리", ["하강하는 바이러스가", "매칭 라인에 닿을 때", "SPACE 키로 박멸합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("GRAVITY GRID", "중력 격자 회로 정렬", ["그리드 노드를 클릭하여", "모든 에너지 배관망을", "동일 방향으로 연결합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
-    ("HYPERDRIVE BOOT", "초광속 역추진 감속", ["중력권 초과 충격을", "방지하기 위해 10초 내", "SPACE 키를 18회 연타합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]")
+    ("HYPERDRIVE BOOT", "초광속 역추진 감속", ["중력권 초과 충격을", "방지하기 위해 10초 내", "SPACE 키를 18회 연타합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("CREW CALMING", "승무원 폐쇄공포 진정", ["날뛰는 승무원을", "마우스 조준선으로 추적해", "진정제를 투여합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("CRANK LANDING", "역추진 크랭크 제어", ["마우스 좌클릭을 한 상태로", "중심축 주변을 회전시켜", "크랭크 축을 연동합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]")
 ]
 
 def scroll_minigames(direction):
@@ -1424,12 +1442,14 @@ def main():
     gravity_hull_game = GravityHullRepairGame()
     core_thermal_game = CoreThermalStabilizerGame()
     riot_pacification_game = RiotPacificationGame()
-    life_support_game = LifeSupportGame()
+    life_support_game = PathogenQuarantineGame()
     stellar_memory_game = StellarMemoryGame()
     electric_dodge_game = HighVoltageSparkDodgeGame()
     quarantine_game = PathogenQuarantineGame()
     energy_grid_game = EnergyGridGame()
     deceleration_game = ReverseThrustDecelerationGame()
+    crew_calm_game = CrewCalmGame()
+    crank_landing_game = CrankLandingGame()
     
     stage_mappings = {
         "FIRE_GAME": fire_game,
@@ -1442,7 +1462,9 @@ def main():
         "ELECTRIC_GAME": electric_dodge_game,
         "QUARANTINE_GAME": quarantine_game,
         "GRID_GAME": energy_grid_game,
-        "LANDING_GAME": deceleration_game
+        "LANDING_GAME": deceleration_game,
+        "CREW_CALM_GAME": crew_calm_game,
+        "CRANK_LANDING_GAME": crank_landing_game
     }
     
     # 드래그 줌 상태 변수
@@ -1541,7 +1563,7 @@ def main():
                         play_sfx("sfx_end")
                         go_to_minigames()
                     continue
-                elif settings.state in ["RESOURCE_GAME", "FIRE_GAME", "ROBOT_GAME", "GRAVITY_GAME", "OVERHEAT_GAME", "RIOT_GAME", "LIFE_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "GRID_GAME", "LANDING_GAME"]:
+                elif settings.state in ["RESOURCE_GAME", "FIRE_GAME", "ROBOT_GAME", "GRAVITY_GAME", "OVERHEAT_GAME", "RIOT_GAME", "LIFE_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "GRID_GAME", "LANDING_GAME", "CREW_CALM_GAME", "CRANK_LANDING_GAME"]:
                     if not settings.minigame_paused:
                         settings.minigame_paused = True
                         settings.minigame_pause_started_at = pygame.time.get_ticks()
@@ -1709,7 +1731,9 @@ def main():
                                 9: ("ELECTRIC_GAME", electric_dodge_game),
                                 10: ("QUARANTINE_GAME", quarantine_game),
                                 11: ("GRID_GAME", energy_grid_game),
-                                12: ("LANDING_GAME", deceleration_game)
+                                12: ("LANDING_GAME", deceleration_game),
+                                13: ("CREW_CALM_GAME", crew_calm_game),
+                                14: ("CRANK_LANDING_GAME", crank_landing_game)
                             }
                             if game_idx in game_mappings:
                                 state_name, game_inst = game_mappings[game_idx]

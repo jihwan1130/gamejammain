@@ -1,8 +1,16 @@
-import pygame, random, sys
+import pygame, random, sys, os
 
 class RiotPacificationGame:
     def __init__(self):
         self.words = ["냉정", "논리", "화합", "신뢰", "공존", "소통", "중재", "평화"]
+        self.bg_img = None
+        try:
+            bg_path = os.path.join("assets", "Stage_6.png")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
+        except Exception as e:
+            print(f"Stage_6.png 로드 실패: {e}")
         self.reset()
         
     def get_random_positions(self, words, min_dist=150):
@@ -103,9 +111,22 @@ class RiotPacificationGame:
         from visual_effects import draw_terminal_hud
         from main import CRT_GREEN, WHITE, get_scaled_font
         
+        # 색상 테마 정의
+        COLOR_THEME = (230, 160, 40)        # 따뜻한 골드/오렌지 (붉은 배경과 조화)
+        COLOR_WORD_ACTIVE = (255, 230, 120) # 밝은 네온 옐로우 (높은 가독성)
+        COLOR_WORD_DONE = (120, 80, 80)     # 어두운 적갈색 (완료됨)
+        COLOR_OVERLAY = (24, 6, 6, 175)     # 어두운 붉은빛 반투명 오버레이
+        
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
-        virtual_surf.fill((5, 10, 25))
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
+            # 가독성을 높이기 위해 어두운 반투명 오버레이 추가 (붉은 갈색 톤)
+            dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            dim_overlay.fill(COLOR_OVERLAY)
+            virtual_surf.blit(dim_overlay, (0, 0))
+        else:
+            virtual_surf.fill((25, 10, 10))  # 단색 배경도 어두운 붉은색 톤으로 설정
         
         # Fonts
         font_main = pygame.font.SysFont("malgungothic", 30, bold=True)
@@ -114,14 +135,15 @@ class RiotPacificationGame:
         
         # Draw words
         for w in self.word_data:
-            color = (80, 80, 80) if w["done"] else (60, 120, 220)
+            color = COLOR_WORD_DONE if w["done"] else COLOR_WORD_ACTIVE
             txt = font_main.render(w["text"], True, color)
             virtual_surf.blit(txt, w["pos"])
             if w["done"]:
-                pygame.draw.line(virtual_surf, (80, 80, 80), (w["pos"][0], w["pos"][1] + 20), (w["pos"][0] + txt.get_width(), w["pos"][1] + 20), 3)
+                # 완료 취소선 긋기
+                pygame.draw.line(virtual_surf, COLOR_WORD_DONE, (w["pos"][0], w["pos"][1] + 20), (w["pos"][0] + txt.get_width(), w["pos"][1] + 20), 3)
                 
         # Draw input box
-        pygame.draw.rect(virtual_surf, (60, 120, 220), (200, 550, 600, 70), 2)
+        pygame.draw.rect(virtual_surf, COLOR_THEME, (200, 550, 600, 70), 2)
         display_text = self.user_input + self.composition_text
         txt_input = font_input.render(display_text, True, WHITE)
         virtual_surf.blit(txt_input, (210, 560))
@@ -132,7 +154,7 @@ class RiotPacificationGame:
         if show_cursor and self.state == "PLAYING":
             pygame.draw.line(virtual_surf, WHITE, (cursor_x, 565), (cursor_x, 615), 2)
             
-        draw_terminal_hud(virtual_surf, "INTERNAL MUTINY PACIFICATION", self.limit_time, self.elapsed_time, (60, 120, 220))
+        draw_terminal_hud(virtual_surf, "INTERNAL MUTINY PACIFICATION", self.limit_time, self.elapsed_time, COLOR_THEME)
         
         if self.state != "PLAYING":
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)

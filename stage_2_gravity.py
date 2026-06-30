@@ -1,8 +1,16 @@
-import pygame, random, sys
+import pygame, random, sys, os
 
 class GravityHullRepairGame:
     def __init__(self):
-        self.key_map = {pygame.K_q: 'Q', pygame.K_w: 'W', pygame.K_e: 'E', pygame.K_r: 'R'}
+        self.key_map = {pygame.K_d: 'D', pygame.K_f: 'F', pygame.K_j: 'J', pygame.K_k: 'K'}
+        self.bg_img = None
+        try:
+            bg_path = os.path.join("assets", "Stage_9.png")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
+        except Exception as e:
+            print(f"Stage_9.png 로드 실패: {e}")
         self.reset()
         
     def get_new_target(self):
@@ -65,7 +73,14 @@ class GravityHullRepairGame:
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
-        virtual_surf.fill((5, 25, 10))
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
+            # 가독성을 높이기 위해 옅은 어두운 오버레이 추가
+            dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            dim_overlay.fill((10, 15, 10, 160))  # R, G, B, Alpha
+            virtual_surf.blit(dim_overlay, (0, 0))
+        else:
+            virtual_surf.fill((5, 25, 10))
         
         # Fonts
         font_main = pygame.font.SysFont("malgungothic", 24, bold=True)
