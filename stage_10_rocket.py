@@ -13,8 +13,7 @@ def load_gif_frames(filepath):
             data = frame_rgba.tobytes("raw", "RGBA")
             size = frame_rgba.size
             surf = pygame.image.fromstring(data, size, "RGBA")
-            surf_conv = surf.convert()
-            surf_conv.set_colorkey((0, 0, 0))
+            surf_conv = surf.convert_alpha()
             frames.append(surf_conv)
     except Exception as e:
         print(f"GIF 프레임 로드 실패: {e}")
@@ -24,7 +23,7 @@ class MeteorGame:
     def __init__(self):
         self.bg_img = None
         self.meteor_frames = []
-        self.rocket_img = None
+        self.rocket_frames = []
         self.load_assets()
         self.reset()
         
@@ -37,11 +36,9 @@ class MeteorGame:
             
         self.meteor_frames = load_gif_frames(os.path.join(base_dir, "assets", "meteor2.gif"))
             
-        try:
-            self.rocket_img = pygame.image.load(os.path.join(base_dir, "assets", "rocket.png")).convert()
-            self.rocket_img.set_colorkey((0, 0, 0))
-        except Exception as e:
-            print(f"로켓 이미지를 로드할 수 없습니다: {e}")
+        self.rocket_frames = load_gif_frames(os.path.join(base_dir, "assets", "rocket2.gif"))
+        if not self.rocket_frames:
+            print("로켓 GIF 프레임을 로드할 수 없습니다.")
 
     def reset(self):
         from main import settings
@@ -163,6 +160,11 @@ class MeteorGame:
                             click_sfx.play()
                         if self.hp <= 0:
                             self.state = "LOST"
+                            try:
+                                from main import play_music_track, GAMEOVER_MUSIC_PATH
+                                play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
+                            except Exception as e:
+                                print(f"게임오버 음악 재생 실패: {e}")
                     # Remove the hit meteor
                     self.meteors.remove(m)
                     continue
@@ -293,20 +295,12 @@ class MeteorGame:
         # Draw Player Ship
         if self.invincible_timer == 0 or (self.invincible_timer // 4) % 2 == 0:
             px, py = int(self.player_x + ox), int(self.player_y + oy)
-            
-            # Jet flame animation (scaled 1.5x to match 1.5x rocket)
-            if self.state == "PLAYING" and pygame.time.get_ticks() % 100 < 50:
-                flame = [
-                    (px - 18, py + 30),
-                    (px, py + 72),
-                    (px + 18, py + 30)
-                ]
-                pygame.draw.polygon(surface, (255, 120, 30), flame)
-                
-            if self.rocket_img:
-                rw = int(self.player_size * 2.4)
-                rh = int(self.player_size * 2.4)
-                scaled_rocket = pygame.transform.scale(self.rocket_img, (rw, rh))
+            if self.rocket_frames:
+                frame_idx = (pygame.time.get_ticks() // 25) % len(self.rocket_frames)
+                img = self.rocket_frames[frame_idx]
+                rw = int(self.player_size * 1.2)
+                rh = int(self.player_size * 2.2)
+                scaled_rocket = pygame.transform.scale(img, (rw, rh))
                 rect = scaled_rocket.get_rect(center=(px, py))
                 surface.blit(scaled_rocket, rect)
             else:

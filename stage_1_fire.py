@@ -2,49 +2,141 @@ import pygame, random, math
 
 class FireGame:
     def __init__(self):
+        # Load assets once at startup
+        self.bg_img = None
+        try:
+            import os
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            bg_path = os.path.join(base_dir, "assets", "fire_map.png")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
+        except Exception as e:
+            print(f"fire_map.png 로드 실패: {e}")
+
+        # Pre-cache different sizes of fire animation frames
+        self.fire_frames_large = []
+        self.fire_frames_medium = []
+        self.fire_frames_small = []
+        try:
+            import os
+            from PIL import Image, ImageSequence
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            gif_path = os.path.join(base_dir, "assets", "fire.gif")
+            if os.path.exists(gif_path):
+                gif = Image.open(gif_path)
+                for frame in ImageSequence.Iterator(gif):
+                    frame_rgba = frame.convert("RGBA")
+                    data = frame_rgba.tobytes("raw", "RGBA")
+                    size = frame_rgba.size
+                    surf = pygame.image.fromstring(data, size, "RGBA")
+                    # Erase black background of fire gif
+                    surf_conv = surf.convert()
+                    surf_conv.set_colorkey((0, 0, 0))
+                    
+                    self.fire_frames_large.append(pygame.transform.scale(surf_conv, (230, 230)))
+                    self.fire_frames_medium.append(pygame.transform.scale(surf_conv, (160, 160)))
+                    self.fire_frames_small.append(pygame.transform.scale(surf_conv, (100, 100)))
+        except Exception as e:
+            print(f"fire.gif 로드 실패: {e}")
+
         self.reset()
         
     def reset(self):
         self.fires = []
-        for _ in range(5):
-            self.fires.append({
-                "x": random.randint(100, 900),
-                "y": random.randint(100, 600),
-                "hp": 30
-            })
         self.start_ticks = pygame.time.get_ticks()
+        self.last_update_ticks = self.start_ticks
         self.elapsed_time = 0
         self.limit_time = 20.0
-        self.state = "PLAYING" # PLAYING, SUCCESS, FAIL
+        self.state = "COUNTDOWN" # "COUNTDOWN", "PLAYING", "SUCCESS", "FAIL"
+        self.spawned_count = 5
+        self.sfx_timer = 0.0
+        for _ in range(5):
+            self.spawn_fire()
+        
+    def spawn_fire(self):
+        # Pick a random size choice: L (9 clicks), M (5 clicks), S (3 clicks)
+        size_choice = random.choice(["L", "M", "S"])
+        if size_choice == "L":
+            hp = 9.0
+        elif size_choice == "M":
+            hp = 5.0
+        else:
+            hp = 3.0
+            
+        # Pick a random location within safe boundaries of 1000x700
+        self.fires.append({
+            "x": random.randint(100, 900),
+            "y": random.randint(100, 600),
+            "hp": hp
+        })
         
     def update(self):
-        if self.state == "PLAYING":
-            self.elapsed_time = (pygame.time.get_ticks() - self.start_ticks) / 1000.0
+        current_ticks = pygame.time.get_ticks()
+        if self.state == "COUNTDOWN":
+            self.elapsed_time = 0
+            self.last_update_ticks = current_ticks
+            countdown_elapsed = current_ticks - self.start_ticks
+            if countdown_elapsed >= 3000:
+                self.state = "PLAYING"
+                self.play_start_ticks = current_ticks
+                self.last_update_ticks = current_ticks
+        elif self.state == "PLAYING":
+            dt = (current_ticks - self.last_update_ticks) / 1000.0
+            self.last_update_ticks = current_ticks
             
-            # Continuous mouse click to extinguish fires
-            if pygame.mouse.get_pressed()[0]:
+            self.elapsed_time = (current_ticks - self.play_start_ticks) / 1000.0
+            
+            # Check mouse hold down to extinguish fires
+            mouse_pressed = pygame.mouse.get_pressed()[0]
+            if mouse_pressed:
                 mx, my = pygame.mouse.get_pos()
-                from main import settings
-                # Convert mouse coordinates to virtual 1000x700 coordinates
+                from main import settings, play_sfx
                 vmx = int(mx * 1000 / settings.width)
                 vmy = int(my * 700 / settings.height)
+                
+                hit_any = False
                 for f in self.fires[:]:
-                    if math.hypot(vmx - f["x"], vmy - f["y"]) < 50:
-                        f["hp"] -= 0.5
-                    if f["hp"] <= 0:
-                        self.fires.remove(f)
-            
-            if len(self.fires) == 0:
+                    r_hit = 130 if f["hp"] > 5 else (95 if f["hp"] > 3 else 65)
+                    if math.hypot(vmx - f["x"], vmy - f["y"]) < r_hit:
+                        f["hp"] -= dt * 8.0
+                        hit_any = True
+                        if f["hp"] <= 0:
+                            self.fires.remove(f)
+                        break
+                        
+                if hit_any:
+                    self.sfx_timer -= dt
+                    if self.sfx_timer <= 0:
+                        play_sfx("sfx_click")
+                        self.sfx_timer = 0.15
+                else:
+                    self.sfx_timer = 0.0
+            else:
+                self.sfx_timer = 0.0
+                
+            # If player extinguished all spawned fires and at least one has spawned, victory!
+            if self.elapsed_time > 0.5 and len(self.fires) == 0 and self.spawned_count > 0:
                 self.state = "SUCCESS"
             elif self.elapsed_time >= self.limit_time:
-                self.state = "FAIL"
+                # Timer ended! Evaluate success/fail based on remaining clicks (HP)
+                total_clicks = sum(f["hp"] for f in self.fires)
+                if total_clicks >= 9:
+                    self.state = "FAIL"
+                    try:
+                        from main import play_music_track, GAMEOVER_MUSIC_PATH
+                        play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
+                    except Exception as e:
+                        print(f"게임오버 음악 재생 실패: {e}")
+                else:
+                    self.state = "SUCCESS"
                 
     def handle_input(self):
         pass
         
     def handle_event(self, event):
         from main import settings, go_to_minigames, play_sfx, keyboard_sfx
-        if self.state != "PLAYING":
+        if self.state not in ["PLAYING", "COUNTDOWN"]:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     play_sfx("sfx_end")
@@ -54,6 +146,11 @@ class FireGame:
                     if keyboard_sfx:
                         keyboard_sfx.set_volume(settings.volume)
                         keyboard_sfx.play()
+                    try:
+                        from main import play_music_track, FIRE_MUSIC_PATH
+                        play_music_track(FIRE_MUSIC_PATH, fade_ms=0)
+                    except Exception as e:
+                        print(f"화재진압 음악 재생 실패: {e}")
             return
             
         if event.type == pygame.KEYDOWN:
@@ -61,20 +158,94 @@ class FireGame:
                 play_sfx("sfx_end")
                 go_to_minigames()
                 
+        pass
+                
     def draw(self, surface):
         from visual_effects import draw_terminal_hud
         from main import CRT_GREEN, WHITE, get_scaled_font
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
-        virtual_surf.fill((30, 20, 10))
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
+            # Apply same dark warm overlay as the meteor shower game
+            dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            dim_overlay.fill((15, 10, 8, 170))  # R, G, B, Alpha (170 = ~66% opacity)
+            virtual_surf.blit(dim_overlay, (0, 0))
+        else:
+            virtual_surf.fill((30, 20, 10))
         
         for f in self.fires:
-            pygame.draw.circle(virtual_surf, (220, 60, 40), (f["x"], f["y"]), 20)
+            # Select scaled frames based on current remaining clicks (HP)
+            if f["hp"] > 5:
+                frames = self.fire_frames_large
+                fallback_r = 100
+            elif f["hp"] > 3:
+                frames = self.fire_frames_medium
+                fallback_r = 70
+            else:
+                frames = self.fire_frames_small
+                fallback_r = 40
+                
+            if frames:
+                frame_idx = (pygame.time.get_ticks() // 80) % len(frames)
+                fire_surf = frames[frame_idx]
+                rect = fire_surf.get_rect(center=(f["x"], f["y"]))
+                virtual_surf.blit(fire_surf, rect)
+            else:
+                pygame.draw.circle(virtual_surf, (220, 60, 40), (f["x"], f["y"]), fallback_r)
             
-        draw_terminal_hud(virtual_surf, "FIRE SUPPRESSION", self.limit_time, self.elapsed_time, (235, 130, 40))
+        # Draw HUD (Custom monitor style with progress bar)
+        color = (235, 130, 40)
+        # 외부 프레임 테두리
+        pygame.draw.rect(virtual_surf, color, (10, 10, 980, 680), 2)
+        pygame.draw.rect(virtual_surf, color, (15, 15, 970, 670), 1)
         
-        if self.state != "PLAYING":
+        # 제한 시간 프로그레스 바 (stage_10_rocket 스타일)
+        time_ratio = max(0.0, (self.limit_time - self.elapsed_time) / self.limit_time)
+        bar_max_w = 400
+        bar_h = 16
+        bar_x = 30
+        bar_y = 25
+        pygame.draw.rect(virtual_surf, color, (bar_x, bar_y, bar_max_w, bar_h), 2)
+        fill_w = int(bar_max_w * time_ratio)
+        if fill_w > 0:
+            bar_color = (100, 255, 100) if time_ratio > 0.5 else ((255, 120, 30) if time_ratio > 0.2 else (255, 60, 40))
+            pygame.draw.rect(virtual_surf, bar_color, (bar_x + 2, bar_y + 2, fill_w - 4, bar_h - 4))
+            
+        # 우측 상단 시스템 얼럿 타이틀 정보
+        font = pygame.font.SysFont("malgungothic", 20, bold=True)
+        title_text = font.render("■ SYSTEM ALERT: FIRE SUPPRESSION ■", True, color)
+        virtual_surf.blit(title_text, (1000 - title_text.get_width() - 30, 22))
+        
+        # Draw status text displaying the remaining clicks and victory condition
+        total_remaining = sum(int(f["hp"]) for f in self.fires)
+        font_status = get_scaled_font(18, is_korean=True)
+        status_text = f"남은 잔불 강도 (총 클릭): {total_remaining} (성공 조건: 8 이하)"
+        status_surf = font_status.render(status_text, True, (255, 200, 100))
+        virtual_surf.blit(status_surf, (50, 615))
+        
+        # Countdown overlay rendering
+        if self.state == "COUNTDOWN":
+            elapsed = pygame.time.get_ticks() - self.start_ticks
+            num = 3 - (elapsed // 1000)
+            num_str = str(num) if num > 0 else "START!"
+            
+            # Pulse size
+            pulse = 1.0 + (elapsed % 1000) / 1000.0 * 0.3
+            font_num = pygame.font.SysFont("malgungothic", int(48 * pulse), bold=True)
+            
+            num_surf = font_num.render(num_str, True, (255, 255, 255))
+            num_rect = num_surf.get_rect(center=(500, 350))
+            
+            box_w, box_h = 300, 120
+            box_rect = pygame.Rect(500 - box_w//2, 350 - box_h//2, box_w, box_h)
+            pygame.draw.rect(virtual_surf, (15, 8, 3, 220), box_rect)
+            pygame.draw.rect(virtual_surf, color, box_rect, 2)
+            
+            virtual_surf.blit(num_surf, num_rect)
+            
+        if self.state in ["SUCCESS", "FAIL"]:
             font_main = pygame.font.SysFont("malgungothic", 24, bold=True)
             font_sub = pygame.font.SysFont("malgungothic", 18)
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
