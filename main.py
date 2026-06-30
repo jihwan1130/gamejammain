@@ -6,6 +6,17 @@ import math
 import json
 from comet_mini import MeteorGame
 from resources_mini import ResourcesGame
+from stage_1_fire import FireGame
+from stage_1_robot import RogueRobotGame
+from stage_2_gravity import GravityHullRepairGame
+from stage_2_overheat import CoreThermalStabilizerGame
+from stage_3_riot import RiotPacificationGame
+from stage_4_life import LifeSupportGame
+from stage_4_nav import StellarMemoryGame
+from stage_6_electric import HighVoltageSparkDodgeGame
+from stage_6_patient import PathogenQuarantineGame
+from stage_8_grid import EnergyGridGame
+from stage_9_landing import ReverseThrustDecelerationGame
 
 # 초기화
 pygame.init()
@@ -826,14 +837,17 @@ minigames_buttons = [
 GAMES_LIST = [
     ("RESOURCE HARVEST", "우주선 탑승 자원 수집", ["우주선 내외를 돌며", "산소/전기/정신력 및", "크루들을 수집합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("METEOR SHOWER", "운석 소나기", ["안전 보호막이 손상된", "구역에서 쏟아지는", "운석을 피합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
-    ("REACTOR REPAIR", "원자로 긴급 수리", ["제한 시간 내에", "과부하된 원자로", "노드를 복구합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("LIGHTS OUT", "불끄기", ["전력 과부하를 막기", "위해 모든 전등", "노드를 소등합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("OXYGEN FILL", "산소 주입 장치", ["일정 압력을 유지", "하도록 산소 탱크", "밸브를 조절합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("NAV SYSTEM CALIB", "항법 장치 보정", ["성간 여행을 위한", "좌표 정렬과 항법", "센서를 교정합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("SHIELD CHARGE", "방어막 충전", ["에너지 주파수를", "동조시켜 보호막을", "100% 충전합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("COMMS ALIGN", "통신 안테나 정렬", ["우주 노이즈를", "필터링하고 안테나", "각도를 조정합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("GRAVITY GRID", "중력장 제어", ["선내 중력 붕괴를", "막기 위해 중력", "노드를 평형화합니다."], "[ 준비 중 - 차후 업로드 ]"),
-    ("HYPERDRIVE BOOT", "초광속 도약 시동", ["메인 추진 장치와", "하이퍼드라이브", "코어를 점화합니다."], "[ 준비 중 - 차후 업로드 ]")
+    ("FIRE SUPPRESSION", "원자로 화재 진압", ["원자로 구역 화재 발생!", "마우스 클릭으로 물을", "분사하여 불을 끕니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("ROGUE ROBOT SUPPRESSION", "폭주 로봇 진압", ["폭주하는 침투 로봇의", "약점을 저격하여", "구역을 방어합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("GRAVITY ANOMALY ESCAPE", "격벽 중력장 복구", ["화면에 무작위로 표시되는", "키를 신속히 눌러", "중력 변동을 제어합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("REACTOR REPAIR", "원자로 과열 냉각", ["A / D 키를 조작하여", "과부하된 원자로 코어를", "안전 구역에 유지시킵니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("RIOT PACIFICATION", "선내 폭동 평화 설득", ["선원들의 요구 사항 단어를", "타이핑하여 이성적인", "타협을 이끌어냅니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("OXYGEN FILL", "산소 공급 장치 가동", ["산소 공급 장치를", "정상화하기 위해", "SPACE 키를 연타합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("NAV SYSTEM CALIB", "항법 장치 메모리 보정", ["메모리 노드의 심볼들을", "매칭하여 최적의", "도약 항로를 정렬합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("SHIELD CHARGE", "방어막 고전압 충전", ["A / D 키로 충전기를 조작해", "낙뢰 스파크를 피하며", "에너지를 공급받습니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("PATHOGEN QUARANTINE", "바이러스 세포 격리", ["하강하는 바이러스가", "매칭 라인에 닿을 때", "SPACE 키로 박멸합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("GRAVITY GRID", "중력 격자 회로 정렬", ["그리드 노드를 클릭하여", "모든 에너지 배관망을", "동일 방향으로 연결합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("HYPERDRIVE BOOT", "초광속 역추진 감속", ["중력권 초과 충격을", "방지하기 위해 10초 내", "SPACE 키를 18회 연타합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]")
 ]
 
 def scroll_minigames(direction):
@@ -1005,7 +1019,7 @@ class MeteorGame:
                 
                 # Check collision with player
                 dist = math.hypot(m["x"] - self.player_x, m["y"] - self.player_y)
-                if dist < (m["size"] * 0.85 + self.player_size - 4):
+                if dist < (m["size"] * 0.85 + self.player_size * 0.75):
                     if self.invincible_timer == 0:
                         self.hp -= 1
                         self.invincible_timer = 60  # 1 second invincibility
@@ -1374,6 +1388,17 @@ def main():
     console = RetroConsole()
     meteor_game = MeteorGame()
     resources_game = ResourcesGame()
+    fire_game = FireGame()
+    rogue_robot_game = RogueRobotGame()
+    gravity_hull_game = GravityHullRepairGame()
+    core_thermal_game = CoreThermalStabilizerGame()
+    riot_pacification_game = RiotPacificationGame()
+    life_support_game = LifeSupportGame()
+    stellar_memory_game = StellarMemoryGame()
+    electric_dodge_game = HighVoltageSparkDodgeGame()
+    quarantine_game = PathogenQuarantineGame()
+    energy_grid_game = EnergyGridGame()
+    deceleration_game = ReverseThrustDecelerationGame()
     
     # 드래그 줌 상태 변수
     dragging_zoom = False
@@ -1393,10 +1418,17 @@ def main():
             
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 if settings.state == "METEOR_GAME":
-                    # [요구사항 3] ESC 키로 일시정지/재개 토글
                     if meteor_game.state == "PLAYING":
                         meteor_game.pause_game()
                         play_sfx("sfx_end")
+                    elif meteor_game.state in ["WON", "LOST", "PAUSED"]:
+                        play_sfx("sfx_end")
+                        go_to_minigames()
+                    continue
+                elif settings.state in ["RESOURCE_GAME", "FIRE_GAME", "ROBOT_GAME", "GRAVITY_GAME", "OVERHEAT_GAME", "RIOT_GAME", "LIFE_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "GRID_GAME", "LANDING_GAME"]:
+                    play_sfx("sfx_end")
+                    go_to_minigames()
+                    continue
                 elif settings.state == "MENU" and settings.view_mode == "SPACE":
                     settings.view_mode = "TRANSITION"
                     settings.transition_progress = 1.0
@@ -1528,18 +1560,26 @@ def main():
                         cx = start_x + i * (card_w + gap)
                         rect = pygame.Rect(cx, card_y, card_w, card_h)
                         if rect.collidepoint(event.pos):
-                            if game_idx == 0:
-                                settings.state = "RESOURCE_GAME"
-                                resources_game.reset()
+                            game_mappings = {
+                                0: ("RESOURCE_GAME", resources_game),
+                                1: ("METEOR_GAME", meteor_game),
+                                2: ("FIRE_GAME", fire_game),
+                                3: ("ROBOT_GAME", rogue_robot_game),
+                                4: ("GRAVITY_GAME", gravity_hull_game),
+                                5: ("OVERHEAT_GAME", core_thermal_game),
+                                6: ("RIOT_GAME", riot_pacification_game),
+                                7: ("LIFE_GAME", life_support_game),
+                                8: ("NAV_GAME", stellar_memory_game),
+                                9: ("ELECTRIC_GAME", electric_dodge_game),
+                                10: ("QUARANTINE_GAME", quarantine_game),
+                                11: ("GRID_GAME", energy_grid_game),
+                                12: ("LANDING_GAME", deceleration_game)
+                            }
+                            if game_idx in game_mappings:
+                                state_name, game_inst = game_mappings[game_idx]
+                                settings.state = state_name
+                                game_inst.reset()
                                 play_music_track(MINIGAME_MUSIC_PATH, fade_ms=1000)
-                                if keyboard_sfx:
-                                    keyboard_sfx.set_volume(settings.volume)
-                                    keyboard_sfx.play()
-                            elif game_idx == 1:
-                                settings.state = "METEOR_GAME"
-                                meteor_game.reset()
-                                # 메인 BGM(spacesound)을 정지하고 미니게임 BGM을 페이드 인으로 재생
-                                play_music_track(MINIGAME_MUSIC_PATH, fade_ms=1000) # 1초 동안 새 음악(minigame_rain)을 서서히 켬
                                 if keyboard_sfx:
                                     keyboard_sfx.set_volume(settings.volume)
                                     keyboard_sfx.play()
@@ -1551,10 +1591,8 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         if meteor_game.state == "PLAYING":
-                            # [수정] ESC 키는 게임을 'PAUSED' 상태로 만들기만 함
                             meteor_game.pause_game()
                             play_sfx("sfx_end")
-                        # [수정] PAUSED 상태에서 ESC를 눌러도 재개되지 않도록 관련 로직 제거
                         elif meteor_game.state in ["WON", "LOST"]:
                             play_sfx("sfx_end")
                             go_to_minigames()
@@ -1563,12 +1601,46 @@ def main():
                         if keyboard_sfx:
                             keyboard_sfx.set_volume(settings.volume)
                             keyboard_sfx.play()
+            else:
+                stage_mappings = {
+                    "FIRE_GAME": fire_game,
+                    "ROBOT_GAME": rogue_robot_game,
+                    "GRAVITY_GAME": gravity_hull_game,
+                    "OVERHEAT_GAME": core_thermal_game,
+                    "RIOT_GAME": riot_pacification_game,
+                    "LIFE_GAME": life_support_game,
+                    "NAV_GAME": stellar_memory_game,
+                    "ELECTRIC_GAME": electric_dodge_game,
+                    "QUARANTINE_GAME": quarantine_game,
+                    "GRID_GAME": energy_grid_game,
+                    "LANDING_GAME": deceleration_game
+                }
+                if settings.state in stage_mappings:
+                    stage_mappings[settings.state].handle_event(event)
         if settings.state == "METEOR_GAME":
             meteor_game.handle_input()
             meteor_game.update()
         elif settings.state == "RESOURCE_GAME":
             resources_game.handle_input()
             resources_game.update()
+        else:
+            stage_mappings = {
+                "FIRE_GAME": fire_game,
+                "ROBOT_GAME": rogue_robot_game,
+                "GRAVITY_GAME": gravity_hull_game,
+                "OVERHEAT_GAME": core_thermal_game,
+                "RIOT_GAME": riot_pacification_game,
+                "LIFE_GAME": life_support_game,
+                "NAV_GAME": stellar_memory_game,
+                "ELECTRIC_GAME": electric_dodge_game,
+                "QUARANTINE_GAME": quarantine_game,
+                "GRID_GAME": energy_grid_game,
+                "LANDING_GAME": deceleration_game
+            }
+            if settings.state in stage_mappings:
+                game_inst = stage_mappings[settings.state]
+                game_inst.handle_input()
+                game_inst.update()
             
         # 1. 배경 (픽셀 아트 화면) 및 전환 처리
         if settings.state == "MENU":
@@ -1935,7 +2007,7 @@ def main():
                     card_surf.blit(d_surf, (15, 80 + line_idx * 20))
                     
                 # 상태 표시 (인덱스 0, 1 완료 활성화, 나머지는 대기/준비)
-                status_color = CRT_GREEN if game_idx in [0, 1] else GRAY
+                status_color = CRT_GREEN
                 status_surf = font_card_desc.render(status, True, status_color)
                 card_surf.blit(status_surf, (15, card_h - 30))
                 
@@ -1952,6 +2024,22 @@ def main():
             meteor_game.draw(settings.screen)
         elif settings.state == "RESOURCE_GAME":
             resources_game.draw(settings.screen)
+        else:
+            stage_mappings = {
+                "FIRE_GAME": fire_game,
+                "ROBOT_GAME": rogue_robot_game,
+                "GRAVITY_GAME": gravity_hull_game,
+                "OVERHEAT_GAME": core_thermal_game,
+                "RIOT_GAME": riot_pacification_game,
+                "LIFE_GAME": life_support_game,
+                "NAV_GAME": stellar_memory_game,
+                "ELECTRIC_GAME": electric_dodge_game,
+                "QUARANTINE_GAME": quarantine_game,
+                "GRID_GAME": energy_grid_game,
+                "LANDING_GAME": deceleration_game
+            }
+            if settings.state in stage_mappings:
+                stage_mappings[settings.state].draw(settings.screen)
         
         # 3. 브라운관 전자 빔 및 스캔라인/비네팅 오버레이 필터
         beam.draw(settings.screen)

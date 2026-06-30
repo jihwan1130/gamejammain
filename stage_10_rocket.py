@@ -143,7 +143,7 @@ class MeteorGame:
                 
                 # Check collision with player
                 dist = math.hypot(m["x"] - self.player_x, m["y"] - self.player_y)
-                if dist < (m["size"] * 0.85 + self.player_size - 4):
+                if dist < (m["size"] * 0.85 + self.player_size * 0.75):
                     if self.invincible_timer == 0:
                         self.hp -= 1
                         self.invincible_timer = 60  # 1 second invincibility
