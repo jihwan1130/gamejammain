@@ -28,15 +28,14 @@ class MeteorGame:
         self.reset()
         
     def load_assets(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
         try:
-            self.bg_img = pygame.image.load(os.path.join(base_dir, "assets", "meteor_view.png")).convert()
+            self.bg_img = pygame.image.load(os.path.join("assets", "meteor_view.png")).convert()
         except Exception as e:
             print(f"배경 이미지를 로드할 수 없습니다: {e}")
             
-        self.meteor_frames = load_gif_frames(os.path.join(base_dir, "assets", "meteor2.gif"))
+        self.meteor_frames = load_gif_frames(os.path.join("assets", "meteor2.gif"))
             
-        self.rocket_frames = load_gif_frames(os.path.join(base_dir, "assets", "rocket2.gif"))
+        self.rocket_frames = load_gif_frames(os.path.join("assets", "rocket2.gif"))
         if not self.rocket_frames:
             print("로켓 GIF 프레임을 로드할 수 없습니다.")
 

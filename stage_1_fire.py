@@ -6,8 +6,7 @@ class FireGame:
         self.bg_img = None
         try:
             import os
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            bg_path = os.path.join(base_dir, "assets", "fire_map.png")
+            bg_path = os.path.join("assets", "fire_map.png")
             if os.path.exists(bg_path):
                 raw_bg = pygame.image.load(bg_path).convert()
                 self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
@@ -21,8 +20,7 @@ class FireGame:
         try:
             import os
             from PIL import Image, ImageSequence
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            gif_path = os.path.join(base_dir, "assets", "fire.gif")
+            gif_path = os.path.join("assets", "fire.gif")
             if os.path.exists(gif_path):
                 gif = Image.open(gif_path)
                 for frame in ImageSequence.Iterator(gif):
@@ -218,12 +216,7 @@ class FireGame:
         title_text = font.render("■ SYSTEM ALERT: FIRE SUPPRESSION ■", True, color)
         virtual_surf.blit(title_text, (1000 - title_text.get_width() - 30, 22))
         
-        # Draw status text displaying the remaining clicks and victory condition
-        total_remaining = sum(int(f["hp"]) for f in self.fires)
-        font_status = get_scaled_font(18, is_korean=True)
-        status_text = f"남은 잔불 강도 (총 클릭): {total_remaining} (성공 조건: 8 이하)"
-        status_surf = font_status.render(status_text, True, (255, 200, 100))
-        virtual_surf.blit(status_surf, (50, 615))
+        
         
         # Countdown overlay rendering
         if self.state == "COUNTDOWN":
