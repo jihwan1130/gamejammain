@@ -4,7 +4,8 @@ import os
 import random
 import math
 import json
-from mini_game import MeteorGame
+from comet_mini import MeteorGame
+from resources_mini import ResourcesGame
 
 # 초기화
 pygame.init()
@@ -31,6 +32,7 @@ class GameSettings:
         self.zoom_y = 0
         self.fullscreen = True  # Default to fullscreen
         self.current_music_path = None
+        self.minigame_index = 0
         
     def setup_display(self):
         # 해상도 변경 및 전체화면 플래그 적용 시 호출
@@ -161,12 +163,18 @@ try:
 except Exception as e:
     print(f"배경음악을 로드할 수 없습니다: {e}")
 
-SFX_PATH = os.path.join("assets", "hackingsound2.mp3")
+SFX_PATH = os.path.join("assets", "hackingsound3.MP3")
 KEYBOARD_SFX_PATH = os.path.join("assets", "keyboardsound.MP3")
 WALK2_SFX_PATH = os.path.join("assets", "walksound2.MP3")
+END_SFX_PATH = os.path.join("assets", "endsound.MP3")
+KEYBOARD3_SFX_PATH = os.path.join("assets", "keyboard33.MP3")
+CHANGE_SFX_PATH = os.path.join("assets", "change.MP3")
 click_sfx = None
 keyboard_sfx = None
 walk2_sfx = None
+end_sfx = None
+keyboard3_sfx = None
+change_sfx = None
 try:
     click_sfx = pygame.mixer.Sound(SFX_PATH)
 except Exception as e:
@@ -181,6 +189,45 @@ try:
     walk2_sfx.set_volume(settings.volume)
 except Exception as e:
     print(f"걸음 효과음2를 로드할 수 없습니다: {e}")
+try:
+    end_sfx = pygame.mixer.Sound(END_SFX_PATH)
+    end_sfx.set_volume(settings.volume)
+except Exception as e:
+    print(f"종료 효과음을 로드할 수 없습니다: {e}")
+try:
+    keyboard3_sfx = pygame.mixer.Sound(KEYBOARD3_SFX_PATH)
+    keyboard3_sfx.set_volume(settings.volume)
+except Exception as e:
+    print(f"키보드 효과음3을 로드할 수 없습니다: {e}")
+try:
+    change_sfx = pygame.mixer.Sound(CHANGE_SFX_PATH)
+    change_sfx.set_volume(settings.volume)
+except Exception as e:
+    print(f"변경 효과음을 로드할 수 없습니다: {e}")
+
+def play_sfx(sfx_name):
+    try:
+        if sfx_name == "sfx_click" and click_sfx:
+            click_sfx.set_volume(settings.volume)
+            click_sfx.play()
+        elif sfx_name == "sfx_keyboard" and keyboard_sfx:
+            keyboard_sfx.set_volume(settings.volume)
+            keyboard_sfx.play()
+        elif sfx_name == "sfx_walk" and walk2_sfx:
+            walk2_sfx.set_volume(settings.volume)
+            walk2_sfx.play()
+        elif sfx_name == "sfx_end" and end_sfx:
+            end_sfx.set_volume(settings.volume)
+            end_sfx.play()
+        elif sfx_name == "sfx_keyboard3" and keyboard3_sfx:
+            keyboard3_sfx.set_volume(settings.volume)
+            keyboard3_sfx.play()
+        elif sfx_name == "sfx_change" and change_sfx:
+            change_sfx.set_volume(settings.volume)
+            change_sfx.play()
+    except Exception as e:
+        print(f"SFX 재생 실패 ({sfx_name}): {e}")
+
 clock = pygame.time.Clock()
 
 # 레트로 엠버 모노크롬 색상 정의 (Retro CRT Amber theme)
@@ -220,13 +267,14 @@ def get_scaled_font(size, is_korean=False):
 
 # 레트로 스타일 버튼 (직각 모서리, 고전 도스 게임 테두리)
 class RetroButton:
-    def __init__(self, x_ratio, y_ratio, width_ratio, height_ratio, text, action=None):
+    def __init__(self, x_ratio, y_ratio, width_ratio, height_ratio, text, action=None, click_sfx_name="sfx_click"):
         self.x_ratio = x_ratio
         self.y_ratio = y_ratio
         self.width_ratio = width_ratio
         self.height_ratio = height_ratio
         self.text = text
         self.action = action
+        self.click_sfx_name = click_sfx_name
         self.is_hovered = False
         self.rect = pygame.Rect(0, 0, 0, 0)
         self.update_rect()
@@ -277,9 +325,11 @@ class RetroButton:
         self.update_rect()
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.rect.collidepoint(event.pos):
-                if click_sfx:
-                    click_sfx.set_volume(settings.volume)
-                    click_sfx.play()
+                is_back_btn = "돌아가기" in self.text or "BACK" in self.text.upper()
+                if is_back_btn:
+                    play_sfx("sfx_end")
+                elif self.click_sfx_name:
+                    play_sfx(self.click_sfx_name)
                 if self.action:
                     self.action()
                     return True
@@ -656,9 +706,7 @@ class RetroConsole:
         
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if rect.collidepoint(event.pos):
-                if keyboard_sfx:
-                    keyboard_sfx.set_volume(settings.volume)
-                    keyboard_sfx.play()
+                play_sfx("sfx_keyboard3")
                 # 인터랙티브 로그 엔트리 추가
                 new_logs = [
                     "KEY: INPUT REGISTERED",
@@ -714,6 +762,11 @@ def set_volume(val):
             walk2_sfx.set_volume(val)
     except:
         pass
+    try:
+        if change_sfx:
+            change_sfx.set_volume(val)
+    except:
+        pass
     if val == 0.0:
         progress.unlock_achievement("muted_silence")
 
@@ -741,6 +794,7 @@ def toggle_screen_mode():
 
 def go_to_minigames():
     settings.state = "MINIGAMES"
+    transition_music_track(BGM_PATH, fade_out_ms=1000, fade_in_ms=1800)
 
 
 def go_to_main_menu():
@@ -766,8 +820,34 @@ achievements_buttons = [
 ]
 
 minigames_buttons = [
-    RetroButton(0.34, 0.79, 0.32, 0.08, "메인 메뉴로 돌아가기", go_back_to_menu)
+    RetroButton(0.34, 0.74, 0.32, 0.08, "메인 메뉴로 돌아가기", go_back_to_menu)
 ]
+
+GAMES_LIST = [
+    ("RESOURCE HARVEST", "우주선 탑승 자원 수집", ["우주선 내외를 돌며", "산소/전기/정신력 및", "크루들을 수집합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("METEOR SHOWER", "운석 소나기", ["안전 보호막이 손상된", "구역에서 쏟아지는", "운석을 피합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
+    ("REACTOR REPAIR", "원자로 긴급 수리", ["제한 시간 내에", "과부하된 원자로", "노드를 복구합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("LIGHTS OUT", "불끄기", ["전력 과부하를 막기", "위해 모든 전등", "노드를 소등합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("OXYGEN FILL", "산소 주입 장치", ["일정 압력을 유지", "하도록 산소 탱크", "밸브를 조절합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("NAV SYSTEM CALIB", "항법 장치 보정", ["성간 여행을 위한", "좌표 정렬과 항법", "센서를 교정합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("SHIELD CHARGE", "방어막 충전", ["에너지 주파수를", "동조시켜 보호막을", "100% 충전합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("COMMS ALIGN", "통신 안테나 정렬", ["우주 노이즈를", "필터링하고 안테나", "각도를 조정합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("GRAVITY GRID", "중력장 제어", ["선내 중력 붕괴를", "막기 위해 중력", "노드를 평형화합니다."], "[ 준비 중 - 차후 업로드 ]"),
+    ("HYPERDRIVE BOOT", "초광속 도약 시동", ["메인 추진 장치와", "하이퍼드라이브", "코어를 점화합니다."], "[ 준비 중 - 차후 업로드 ]")
+]
+
+def scroll_minigames(direction):
+    new_idx = settings.minigame_index + direction
+    max_idx = len(GAMES_LIST) - 3
+    if new_idx < 0:
+        new_idx = max_idx
+    elif new_idx > max_idx:
+        new_idx = 0
+    settings.minigame_index = new_idx
+    play_sfx("sfx_change")
+
+left_arrow_btn = RetroButton(0.07, 0.44, 0.035, 0.08, "<", lambda: scroll_minigames(-1), click_sfx_name=None)
+right_arrow_btn = RetroButton(0.895, 0.44, 0.035, 0.08, ">", lambda: scroll_minigames(1), click_sfx_name=None)
 
 settings_components = [
     # 볼륨 조절 슬라이더
@@ -784,10 +864,46 @@ settings_components = [
     RetroButton(0.35, 0.77, 0.30, 0.08, "SAVE & BACK", lambda: setattr(settings, 'state', 'MENU'))
 ]
 
+def load_gif_frames(filepath):
+    frames = []
+    try:
+        from PIL import Image, ImageSequence
+        gif = Image.open(filepath)
+        for frame in ImageSequence.Iterator(gif):
+            frame_rgba = frame.convert("RGBA")
+            data = frame_rgba.tobytes("raw", "RGBA")
+            size = frame_rgba.size
+            surf = pygame.image.fromstring(data, size, "RGBA")
+            surf_conv = surf.convert()
+            surf_conv.set_colorkey((0, 0, 0))
+            frames.append(surf_conv)
+    except Exception as e:
+        print(f"GIF 프레임 로드 실패: {e}")
+    return frames
+
 class MeteorGame:
     def __init__(self):
+        self.bg_img = None
+        self.meteor_frames = []
+        self.rocket_img = None
+        self.load_assets()
         self.reset()
         
+    def load_assets(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        try:
+            self.bg_img = pygame.image.load(os.path.join(base_dir, "assets", "meteor_view.png")).convert()
+        except Exception as e:
+            print(f"배경 이미지를 로드할 수 없습니다: {e}")
+            
+        self.meteor_frames = load_gif_frames(os.path.join(base_dir, "assets", "meteor2.gif"))
+            
+        try:
+            self.rocket_img = pygame.image.load(os.path.join(base_dir, "assets", "rocket.png")).convert()
+            self.rocket_img.set_colorkey((0, 0, 0))
+        except Exception as e:
+            print(f"로켓 이미지를 로드할 수 없습니다: {e}")
+
     def reset(self):
         self.player_x = settings.width // 2
         self.player_y = settings.height - 120
@@ -808,6 +924,17 @@ class MeteorGame:
         self.shake_intensity = 0
         self.pause_resume_rect = pygame.Rect(0, 0, 0, 0)
         self.pause_exit_rect = pygame.Rect(0, 0, 0, 0)
+        
+        # Initialize vertical speed lines for warp speed sensation
+        self.speed_lines = []
+        for _ in range(40):
+            self.speed_lines.append({
+                "x": random.randint(10, settings.width - 10),
+                "y": random.randint(-settings.height, settings.height),
+                "length": random.randint(40, 110),
+                "speed": random.uniform(15.0, 32.0),
+                "alpha": random.randint(50, 150)
+            })
         
     def update(self):
         current_ticks = pygame.time.get_ticks()
@@ -844,16 +971,16 @@ class MeteorGame:
                     num_spawn = 2 if random.random() < 0.3 else 1
                     
                 for _ in range(num_spawn):
-                    # 거대 운석의 빈도를 낮추고 소형 운석의 비율을 늘림 (지수 스케일링)
-                    size = int(8 + (random.random() ** 1.8) * 40)
+                    # 거대 운석의 빈도를 낮추고 소형 운석의 비율을 늘림 (지수 스케일링: 최솟값 1.5배 증가 24, 최댓값 1.2배 감소 80)
+                    size = int(24 + (random.random() ** 1.8) * 56)
                     m_x = random.randint(30, settings.width - 30)
                     m_y = -size
                     
                     # [크기-속도 연동 물리 법칙] 큰 운석은 느리고 묵직하게 길목을 막고, 작은 운석은 빠르게 떨어짐!
-                    if size >= 32:
+                    if size >= 58:
                         base_speed_y = random.uniform(2.2, 3.8)
                         speed_x = random.uniform(-0.8, 0.8)  # 거대 운석은 거의 직선 낙하
-                    elif size >= 18:
+                    elif size >= 38:
                         base_speed_y = random.uniform(3.8, 5.8)
                         speed_x = random.uniform(-1.8, 1.8)
                     else:
@@ -867,7 +994,8 @@ class MeteorGame:
                         "y": m_y,
                         "size": size,
                         "speed_x": speed_x,
-                        "speed_y": speed_y
+                        "speed_y": speed_y,
+                        "frame_offset": random.randint(0, 1000)
                     })
                 
             # Update meteors
@@ -877,7 +1005,7 @@ class MeteorGame:
                 
                 # Check collision with player
                 dist = math.hypot(m["x"] - self.player_x, m["y"] - self.player_y)
-                if dist < (m["size"] + self.player_size - 4):
+                if dist < (m["size"] * 0.85 + self.player_size - 4):
                     if self.invincible_timer == 0:
                         self.hp -= 1
                         self.invincible_timer = 60  # 1 second invincibility
@@ -915,12 +1043,25 @@ class MeteorGame:
             p["life"] -= 1
             if p["life"] <= 0:
                 self.particles.remove(p)
+                
+        # Update vertical speed lines (only when not paused)
+        if self.state in ["PLAYING", "COUNTDOWN", "RESUMING"]:
+            for line in self.speed_lines:
+                line["y"] += line["speed"]
+                if line["y"] > settings.height:
+                    line["x"] = random.randint(10, settings.width - 10)
+                    line["y"] = random.randint(-150, -50)
+                    line["length"] = random.randint(40, 110)
+                    line["speed"] = random.uniform(15.0, 32.0)
+                    line["alpha"] = random.randint(50, 150)
 
     # [요구사항 3] 일시정지 메뉴 버튼 위치 업데이트
     def update_pause_buttons(self):
         button_w = int(settings.width * 0.18)
         button_h = int(settings.height * 0.07)
-        button_y = int(settings.height * 0.56)
+        panel_y = int(settings.height * 0.32)
+        panel_h = int(settings.height * 0.26)
+        button_y = panel_y + int(panel_h * 0.56)
         self.pause_resume_rect = pygame.Rect((settings.width - button_w * 2 - 24) // 2, button_y, button_w, button_h)
         self.pause_exit_rect = pygame.Rect(self.pause_resume_rect.right + 24, button_y, button_w, button_h)
     
@@ -943,20 +1084,20 @@ class MeteorGame:
 
     # [요구사항 3] 일시정지 메뉴 이벤트 처리
     def handle_event(self, event):
-        from main import go_to_main_menu
         # PAUSED 상태일 때만 버튼 클릭을 처리
-        if self.state != "PAUSED" or not (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1):
+        if self.state != "PAUSED":
             return False
 
-        self.update_pause_buttons()
-        if self.pause_resume_rect.collidepoint(event.pos):
-            play_sfx("sfx_click")
-            self.resume_game()
-            return True
-        if self.pause_exit_rect.collidepoint(event.pos):
-            play_sfx("sfx_click")
-            go_to_main_menu()
-            return True
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.update_pause_buttons()
+            if self.pause_resume_rect.collidepoint(event.pos):
+                play_sfx("sfx_click")
+                self.resume_game()
+                return True
+            if self.pause_exit_rect.collidepoint(event.pos):
+                play_sfx("sfx_end")
+                go_to_minigames()
+                return True
         return False
 
     def handle_input(self):
@@ -990,33 +1131,66 @@ class MeteorGame:
         self.player_y = max(50 + self.player_size, min(settings.height - 50 - self.player_size, self.player_y))
 
     def draw(self, surface):
-        # Dark red/brown simulation tint backdrop
-        overlay = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
-        overlay.fill((12, 6, 3, 230))
-        surface.blit(overlay, (0, 0))
-        
         # Shake offset
         ox, oy = 0, 0
         if self.shake_intensity > 0:
             ox = random.randint(-self.shake_intensity, self.shake_intensity)
             oy = random.randint(-self.shake_intensity, self.shake_intensity)
             
-        # Draw retro grid
-        grid_w = 40
-        for x in range(0, settings.width, grid_w):
-            pygame.draw.line(surface, (40, 20, 10), (x + ox, 0), (x + ox, settings.height), 1)
-        for y in range(0, settings.height, grid_w):
-            pygame.draw.line(surface, (40, 20, 10), (ox, y + oy), (settings.width + ox, y + oy), 1)
+        # Draw background image
+        if self.bg_img:
+            if not hasattr(self, '_scaled_bg') or self._scaled_bg.get_size() != (settings.width, settings.height):
+                self._scaled_bg = pygame.transform.scale(self.bg_img, (settings.width, settings.height))
+            surface.blit(self._scaled_bg, (ox, oy))
+            
+            # Apply dark warm overlay to dim contrast and lower saturation for better readability
+            dim_overlay = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
+            dim_overlay.fill((15, 10, 8, 170))  # R, G, B, Alpha (170 = ~66% opacity)
+            surface.blit(dim_overlay, (0, 0))
+        else:
+            # Fallback dark backdrop
+            overlay = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
+            overlay.fill((12, 6, 3, 230))
+            surface.blit(overlay, (0, 0))
+            
+            # Draw retro grid
+            grid_w = 40
+            for x in range(0, settings.width, grid_w):
+                pygame.draw.line(surface, (40, 20, 10), (x + ox, 0), (x + ox, settings.height), 1)
+            for y in range(0, settings.height, grid_w):
+                pygame.draw.line(surface, (40, 20, 10), (ox, y + oy), (settings.width + ox, y + oy), 1)
+                
+        # Draw vertical speed lines for hyper-speed immersion
+        for line in self.speed_lines:
+            factor = line["alpha"] / 255.0
+            # Warm amber/light orange speed lines to match the CRT theme
+            color = (int(255 * factor), int(160 * factor), int(60 * factor))
+            pygame.draw.line(surface, color, (line["x"] + ox, int(line["y"] + oy)), (line["x"] + ox, int(line["y"] + oy + line["length"])), 1)
             
         # Draw Meteors
         for m in self.meteors:
             mx, my = int(m["x"] + ox), int(m["y"] + oy)
             r = m["size"]
-            pygame.draw.circle(surface, (140, 70, 30), (mx, my), r)
-            pygame.draw.circle(surface, CRT_BRIGHT, (mx, my), r, 2)
-            # Crater details
-            pygame.draw.line(surface, CRT_BRIGHT, (mx - r//2, my - r//3), (mx - r//4, my - r//4), 2)
-            pygame.draw.line(surface, CRT_BRIGHT, (mx + r//3, my + r//4), (mx + r//2, my + r//5), 2)
+            if self.meteor_frames:
+                frame_idx = ((pygame.time.get_ticks() + m.get("frame_offset", 0)) // 60) % len(self.meteor_frames)
+                img = self.meteor_frames[frame_idx]
+                diameter = r * 2
+                scaled_meteor = pygame.transform.scale(img, (diameter, diameter))
+                
+                # Calculate diagonal fall angle from speed_x and speed_y
+                angle_deg = math.degrees(math.atan2(m["speed_x"], m["speed_y"]))
+                
+                # Rotate the meteor image around its center
+                rotated_meteor = pygame.transform.rotate(scaled_meteor, angle_deg)
+                rect = rotated_meteor.get_rect(center=(mx, my))
+                
+                surface.blit(rotated_meteor, rect)
+            else:
+                pygame.draw.circle(surface, (140, 70, 30), (mx, my), r)
+                pygame.draw.circle(surface, CRT_BRIGHT, (mx, my), r, 2)
+                # Crater details
+                pygame.draw.line(surface, CRT_BRIGHT, (mx - r//2, my - r//3), (mx - r//4, my - r//4), 2)
+                pygame.draw.line(surface, CRT_BRIGHT, (mx + r//3, my + r//4), (mx + r//2, my + r//5), 2)
             
         # Draw Particles
         for p in self.particles:
@@ -1026,24 +1200,32 @@ class MeteorGame:
         # Draw Player Ship
         if self.invincible_timer == 0 or (self.invincible_timer // 4) % 2 == 0:
             px, py = int(self.player_x + ox), int(self.player_y + oy)
-            points = [
-                (px, py - 44),       # 로켓 상단 팁 (2배 확대)
-                (px - 36, py + 32),  # 좌측 하단 날개
-                (px - 16, py + 16),  # 좌측 안쪽 인덴트
-                (px + 16, py + 16),  # 우측 안쪽 인덴트
-                (px + 36, py + 32)   # 우측 하단 날개
-            ]
-            pygame.draw.polygon(surface, (100, 255, 100), points)
-            pygame.draw.polygon(surface, CRT_GREEN, points, 2)
             
-            # Jet flame animation (2배 크기 확대)
+            # Jet flame animation (scaled 1.5x to match 1.5x rocket)
             if self.state == "PLAYING" and pygame.time.get_ticks() % 100 < 50:
                 flame = [
-                    (px - 12, py + 20),
-                    (px, py + 48),
-                    (px + 12, py + 20)
+                    (px - 18, py + 30),
+                    (px, py + 72),
+                    (px + 18, py + 30)
                 ]
                 pygame.draw.polygon(surface, (255, 120, 30), flame)
+                
+            if self.rocket_img:
+                rw = int(self.player_size * 2.4)
+                rh = int(self.player_size * 2.4)
+                scaled_rocket = pygame.transform.scale(self.rocket_img, (rw, rh))
+                rect = scaled_rocket.get_rect(center=(px, py))
+                surface.blit(scaled_rocket, rect)
+            else:
+                points = [
+                    (px, py - 44),       # 로켓 상단 팁 (2배 확대)
+                    (px - 36, py + 32),  # 좌측 하단 날개
+                    (px - 16, py + 16),  # 좌측 안쪽 인덴트
+                    (px + 16, py + 16),  # 우측 안쪽 인덴트
+                    (px + 36, py + 32)   # 우측 하단 날개
+                ]
+                pygame.draw.polygon(surface, (100, 255, 100), points)
+                pygame.draw.polygon(surface, CRT_GREEN, points, 2)
                 
         # Draw HUD elements
         font_hud = get_scaled_font(16, is_korean=True)
@@ -1191,6 +1373,7 @@ def main():
     beam = CRTBeamEffect()
     console = RetroConsole()
     meteor_game = MeteorGame()
+    resources_game = ResourcesGame()
     
     # 드래그 줌 상태 변수
     dragging_zoom = False
@@ -1213,10 +1396,12 @@ def main():
                     # [요구사항 3] ESC 키로 일시정지/재개 토글
                     if meteor_game.state == "PLAYING":
                         meteor_game.pause_game()
+                        play_sfx("sfx_end")
                 elif settings.state == "MENU" and settings.view_mode == "SPACE":
                     settings.view_mode = "TRANSITION"
                     settings.transition_progress = 1.0
                     settings.transition_direction = -1
+                    play_sfx("sfx_end")
                     if walk2_sfx:
                         walk2_sfx.set_volume(settings.volume)
                         walk2_sfx.play()
@@ -1227,14 +1412,18 @@ def main():
                     continue
                 elif settings.state != "MENU":
                     was_in_game = (settings.state == "GAME")
-                    settings.state = "MENU"
-                    if was_in_game:
-                        try:
-                            pygame.mixer.music.load(os.path.join("assets", "spacesound.mp3"))
-                            pygame.mixer.music.set_volume(settings.volume)
-                            pygame.mixer.music.play(-1)
-                        except:
-                            pass
+                    play_sfx("sfx_end")
+                    if settings.state == "MINIGAMES":
+                        go_to_main_menu()
+                    else:
+                        settings.state = "MENU"
+                        if was_in_game:
+                            try:
+                                pygame.mixer.music.load(os.path.join("assets", "spacesound.mp3"))
+                                pygame.mixer.music.set_volume(settings.volume)
+                                pygame.mixer.music.play(-1)
+                            except:
+                                pass
             
             if settings.state == "MENU":
                 if settings.view_mode == "COCKPIT":
@@ -1311,6 +1500,15 @@ def main():
             elif settings.state == "MINIGAMES":
                 for btn in minigames_buttons:
                     btn.handle_event(event)
+                left_arrow_btn.handle_event(event)
+                right_arrow_btn.handle_event(event)
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        scroll_minigames(-1)
+                    elif event.key == pygame.K_RIGHT:
+                        scroll_minigames(1)
+                        
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     panel_w = int(settings.width * 0.88)
                     panel_h = int(settings.height * 0.78)
@@ -1323,18 +1521,30 @@ def main():
                     start_x = panel_x + int(panel_w * 0.06)
                     card_y = panel_y + int(panel_h * 0.20)
                     
-                    # 2번째 카드 (index 1) - 운석 소나기 카드 클릭 시 실행
-                    cx2 = start_x + 1 * (card_w + gap)
-                    rect2 = pygame.Rect(cx2, card_y, card_w, card_h)
-                    if rect2.collidepoint(event.pos):
-                        settings.state = "METEOR_GAME"
-                        meteor_game.reset()
-                        # 메인 BGM(spacesound)을 페이드 아웃하고 미니게임 BGM을 페이드 인으로 재생
-                        pygame.mixer.music.fadeout(1500) # 1.5초 동안 현재 음악(spacesound)을 서서히 끔
-                        play_music_track(MINIGAME_MUSIC_PATH, fade_ms=1000) # 1초 동안 새 음악(minigame_rain)을 서서히 켬
-                        if keyboard_sfx:
-                            keyboard_sfx.set_volume(settings.volume)
-                            keyboard_sfx.play()
+                    for i in range(3):
+                        game_idx = settings.minigame_index + i
+                        if game_idx >= len(GAMES_LIST):
+                            break
+                        cx = start_x + i * (card_w + gap)
+                        rect = pygame.Rect(cx, card_y, card_w, card_h)
+                        if rect.collidepoint(event.pos):
+                            if game_idx == 0:
+                                settings.state = "RESOURCE_GAME"
+                                resources_game.reset()
+                                play_music_track(MINIGAME_MUSIC_PATH, fade_ms=1000)
+                                if keyboard_sfx:
+                                    keyboard_sfx.set_volume(settings.volume)
+                                    keyboard_sfx.play()
+                            elif game_idx == 1:
+                                settings.state = "METEOR_GAME"
+                                meteor_game.reset()
+                                # 메인 BGM(spacesound)을 정지하고 미니게임 BGM을 페이드 인으로 재생
+                                play_music_track(MINIGAME_MUSIC_PATH, fade_ms=1000) # 1초 동안 새 음악(minigame_rain)을 서서히 켬
+                                if keyboard_sfx:
+                                    keyboard_sfx.set_volume(settings.volume)
+                                    keyboard_sfx.play()
+            elif settings.state == "RESOURCE_GAME":
+                resources_game.handle_event(event)
             elif settings.state == "METEOR_GAME":
                 if meteor_game.handle_event(event):
                     continue
@@ -1343,10 +1553,11 @@ def main():
                         if meteor_game.state == "PLAYING":
                             # [수정] ESC 키는 게임을 'PAUSED' 상태로 만들기만 함
                             meteor_game.pause_game()
-                            play_sfx("sfx_keyboard")
+                            play_sfx("sfx_end")
                         # [수정] PAUSED 상태에서 ESC를 눌러도 재개되지 않도록 관련 로직 제거
                         elif meteor_game.state in ["WON", "LOST"]:
-                            go_to_main_menu()
+                            play_sfx("sfx_end")
+                            go_to_minigames()
                     elif event.key == pygame.K_RETURN and meteor_game.state in ["WON", "LOST"]:
                         meteor_game.reset()
                         if keyboard_sfx:
@@ -1355,6 +1566,9 @@ def main():
         if settings.state == "METEOR_GAME":
             meteor_game.handle_input()
             meteor_game.update()
+        elif settings.state == "RESOURCE_GAME":
+            resources_game.handle_input()
+            resources_game.update()
             
         # 1. 배경 (픽셀 아트 화면) 및 전환 처리
         if settings.state == "MENU":
@@ -1693,13 +1907,11 @@ def main():
             font_card_title = get_scaled_font(15, is_korean=True)
             font_card_desc = get_scaled_font(12, is_korean=True)
             
-            games_list = [
-                ("WARP DUST AVOID", "워프 먼지 피하기", "우주선에 다가오는 워프 먼지들을 피해 생존하는 미니게임입니다.", "[ 대기 중 - 모듈 로드 필요 ]"),
-                ("METEOR SHOWER", "운석 소나기", "안전 보호막이 손상된 구역에서 쏟아지는 운석을 피합니다.", "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
-                ("REACTOR REPAIR", "원자로 긴급 수리", "제한 시간 내에 과부하된 원자로 노드를 복구합니다.", "[ 준비 중 - 차후 업로드 ]")
-            ]
-            
-            for i, (eng, kor, desc, status) in enumerate(games_list):
+            for i in range(3):
+                game_idx = settings.minigame_index + i
+                if game_idx >= len(GAMES_LIST):
+                    break
+                eng, kor, desc_lines, status = GAMES_LIST[game_idx]
                 cx = start_x + i * (card_w + gap)
                 
                 # 카드 배경 및 더블 테두리
@@ -1717,40 +1929,29 @@ def main():
                 # 장식선
                 pygame.draw.line(card_surf, DARK_GRAY, (15, 62), (card_w - 15, 62), 1)
                 
-                # 설명 문장 단락 분리 출력 (줄바꿈 대응)
-                if i == 0:
-                    d_surf1 = font_card_desc.render("우주선에 다가오는", True, WHITE)
-                    d_surf2 = font_card_desc.render("워프 먼지들을 피해", True, WHITE)
-                    d_surf3 = font_card_desc.render("생존하는 미니게임.", True, WHITE)
-                    card_surf.blit(d_surf1, (15, 80))
-                    card_surf.blit(d_surf2, (15, 100))
-                    card_surf.blit(d_surf3, (15, 120))
-                elif i == 1:
-                    d_surf1 = font_card_desc.render("안전 보호막이 손상된", True, WHITE)
-                    d_surf2 = font_card_desc.render("구역에서 쏟아지는", True, WHITE)
-                    d_surf3 = font_card_desc.render("운석을 피합니다.", True, WHITE)
-                    card_surf.blit(d_surf1, (15, 80))
-                    card_surf.blit(d_surf2, (15, 100))
-                    card_surf.blit(d_surf3, (15, 120))
-                else:
-                    d_surf1 = font_card_desc.render("제한 시간 내에", True, WHITE)
-                    d_surf2 = font_card_desc.render("과부하된 원자로", True, WHITE)
-                    d_surf3 = font_card_desc.render("노드를 복구합니다.", True, WHITE)
-                    card_surf.blit(d_surf1, (15, 80))
-                    card_surf.blit(d_surf2, (15, 100))
-                    card_surf.blit(d_surf3, (15, 120))
+                # 설명 문장 단락 분리 출력
+                for line_idx, desc_line in enumerate(desc_lines):
+                    d_surf = font_card_desc.render(desc_line, True, WHITE)
+                    card_surf.blit(d_surf, (15, 80 + line_idx * 20))
                     
-                # 상태 표시
-                status_surf = font_card_desc.render(status, True, CRT_GREEN if i in [0, 1] else GRAY)
+                # 상태 표시 (인덱스 0, 1 완료 활성화, 나머지는 대기/준비)
+                status_color = CRT_GREEN if game_idx in [0, 1] else GRAY
+                status_surf = font_card_desc.render(status, True, status_color)
                 card_surf.blit(status_surf, (15, card_h - 30))
                 
                 settings.screen.blit(card_surf, (cx, card_y))
                 
+            # 화살표 버튼 그리기
+            left_arrow_btn.draw(settings.screen, time_ms)
+            right_arrow_btn.draw(settings.screen, time_ms)
+            
             # 뒤로가기 버튼
             for btn in minigames_buttons:
                 btn.draw(settings.screen, time_ms)
         elif settings.state == "METEOR_GAME":
             meteor_game.draw(settings.screen)
+        elif settings.state == "RESOURCE_GAME":
+            resources_game.draw(settings.screen)
         
         # 3. 브라운관 전자 빔 및 스캔라인/비네팅 오버레이 필터
         beam.draw(settings.screen)
