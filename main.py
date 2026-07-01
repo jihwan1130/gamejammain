@@ -21,6 +21,11 @@ from stage_8_grid import EnergyGridGame
 from stage_9_landing import ReverseThrustDecelerationGame
 from aim import CrewCalmGame
 from spin import CrankLandingGame
+from day0 import Day0Manager
+from day1 import Day1Manager
+from day_5 import Day5Manager
+
+
 
 # 초기화
 pygame.init()
@@ -47,6 +52,11 @@ class GameSettings:
         self.space3 = None
         self.state = "MENU"  # "MENU", "SETTINGS", "GAME"
         self.view_mode = "COCKPIT"  # "COCKPIT", "TRANSITION", "SPACE"
+        self.current_day = 0
+        self.is_campaign = False
+        self.campaign_start_requested = False
+        self.campaign_next_requested = False
+
         self.transition_progress = 0.0  # 0.0 to 1.0
         self.transition_direction = 1  # 1: cockpit->space, -1: space->cockpit
         self.zoom_factor = 1.0  # 1.0 to 3.0
@@ -791,13 +801,22 @@ class RetroConsole:
 # ----------------- 씬 액션 정의 -----------------
 
 def go_to_game():
-    settings.state = "GAME"
+    progress.unlock_achievement("first_boot")
     progress.unlock_achievement("warp_overload")
     progress.unlock_ending("ending_b")
     try:
         pygame.mixer.music.fadeout(1000)
     except:
         pass
+    # 캠페인 시작 (DAY 0부터 진행)
+    settings.current_day = 0
+    settings.is_campaign = True
+    settings.state = f"DAY_{settings.current_day}"
+    settings.campaign_start_requested = True
+
+def next_campaign_day():
+    settings.campaign_next_requested = True
+
 
 def go_to_settings():
     settings.state = "SETTINGS"
@@ -870,11 +889,13 @@ def toggle_screen_mode():
 
 def go_to_minigames():
     settings.state = "MINIGAMES"
+    settings.is_campaign = False
     transition_music_track(BGM_PATH, fade_out_ms=0, fade_in_ms=0)
 
 
 def go_to_main_menu():
     settings.state = "MENU"
+    settings.is_campaign = False
     transition_music_track(BGM_PATH, fade_out_ms=0, fade_in_ms=0)
 
 # 레트로 씬 버튼 등록
@@ -1471,6 +1492,13 @@ def main():
     deceleration_game = ReverseThrustDecelerationGame()
     crew_calm_game = CrewCalmGame()
     crank_landing_game = CrankLandingGame()
+    day_0_manager = Day0Manager()
+    day_1_manager = Day1Manager()
+    day_5_manager = Day5Manager()
+    
+    settings.resources_game = resources_game
+    settings.day_1_manager = day_1_manager
+
     
     stage_mappings = {
         "FIRE_GAME": fire_game,
@@ -1485,7 +1513,10 @@ def main():
         "GRID_GAME": energy_grid_game,
         "LANDING_GAME": deceleration_game,
         "CREW_CALM_GAME": crew_calm_game,
-        "CRANK_LANDING_GAME": crank_landing_game
+        "CRANK_LANDING_GAME": crank_landing_game,
+        "DAY_0": day_0_manager,
+        "DAY_1": day_1_manager,
+        "DAY_5": day_5_manager
     }
     
     # 드래그 줌 상태 변수
@@ -1501,6 +1532,42 @@ def main():
         current_real_time = pygame.time.get_ticks()
         real_dt = current_real_time - last_real_time
         last_real_time = current_real_time
+        
+        # 캠페인 시작 및 다음 날 전환 요청 처리
+        if settings.campaign_start_requested:
+            settings.campaign_start_requested = False
+            active_game = stage_mappings.get(settings.state)
+            if active_game:
+                active_game.reset()
+                if not settings.state.startswith("DAY_"):
+                    play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
+                else:
+                    try:
+                        pygame.mixer.music.stop()
+                    except:
+                        pass
+                
+        if settings.campaign_next_requested:
+            settings.campaign_next_requested = False
+            settings.current_day += 1
+            if settings.current_day > 10:
+                go_to_main_menu()
+            else:
+                state_key = f"DAY_{settings.current_day}"
+                settings.state = state_key
+                active_game = stage_mappings.get(state_key)
+                if active_game:
+                    active_game.reset()
+                    if not state_key.startswith("DAY_"):
+                        play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
+                    else:
+                        try:
+                            pygame.mixer.music.stop()
+                        except:
+                            pass
+                else:
+                    go_to_main_menu()
+
         
         # Semicolon cheat key press duration tracking
         keys = pygame.key.get_pressed()

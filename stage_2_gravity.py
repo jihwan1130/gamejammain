@@ -2,7 +2,12 @@ import pygame, random, sys, os
 
 class GravityHullRepairGame:
     def __init__(self):
-        self.key_map = {pygame.K_d: 'D', pygame.K_f: 'F', pygame.K_j: 'J', pygame.K_k: 'K'}
+        import string
+        self.key_map = {}
+        for char in string.ascii_lowercase:
+            key_code = getattr(pygame, f"K_{char}", None)
+            if key_code is not None:
+                self.key_map[key_code] = char.upper()
         self.bg_img = None
         try:
             bg_path = os.path.join("assets", "atom.jpg")
@@ -18,21 +23,19 @@ class GravityHullRepairGame:
         return new_key, self.key_map[new_key]
         
     def reset(self):
+        self.current_round = 0
+        self.total_rounds = 12
         self.target_key, self.target_name = self.get_new_target()
-        self.gauge = 0.0
         self.start_ticks = pygame.time.get_ticks()
         self.elapsed_time = 0
-        self.limit_time = 15.0
+        self.limit_time = 10.0
         self.state = "PLAYING" # PLAYING, SUCCESS, FAIL
         
     def update(self):
         if self.state == "PLAYING":
             self.elapsed_time = (pygame.time.get_ticks() - self.start_ticks) / 1000.0
             
-            # Constant decay
-            self.gauge = max(0.0, self.gauge - 0.1)
-            
-            if self.gauge >= 100.0:
+            if self.current_round >= self.total_rounds:
                 self.state = "SUCCESS"
             elif self.elapsed_time >= self.limit_time:
                 self.state = "FAIL"
@@ -41,7 +44,14 @@ class GravityHullRepairGame:
         pass
         
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        try:
+            from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        except ImportError:
+            settings = type('MockSettings', (), {'volume': 0.5})()
+            go_to_minigames = lambda: print("Go to minigames called")
+            play_sfx = lambda name: print(f"Play SFX: {name}")
+            keyboard_sfx = None
+            
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -60,27 +70,35 @@ class GravityHullRepairGame:
                 go_to_minigames()
             elif event.key == self.target_key:
                 # Correct key pressed
-                self.gauge = min(100.0, self.gauge + 6.0)
-                self.target_key, self.target_name = self.get_new_target()
+                self.current_round += 1
                 play_sfx("sfx_click")
+                if self.current_round >= self.total_rounds:
+                    self.state = "SUCCESS"
+                else:
+                    self.target_key, self.target_name = self.get_new_target()
             elif event.key in self.key_map:
                 # Incorrect key penalty
-                self.gauge = max(0.0, self.gauge - 2.0)
+                pass
                 
     def draw(self, surface):
-        from visual_effects import draw_terminal_hud
-        from main import CRT_GREEN, WHITE, get_scaled_font
+        try:
+            from main import CRT_GREEN, WHITE, get_scaled_font
+        except ImportError:
+            CRT_GREEN = (0, 255, 0)
+            WHITE = (255, 255, 255)
+            get_scaled_font = lambda f, s: f
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
+        theme_purple = (180, 100, 250)
         if self.bg_img:
             virtual_surf.blit(self.bg_img, (0, 0))
             # 가독성을 높이기 위해 옅은 어두운 오버레이 추가
             dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            dim_overlay.fill((10, 15, 10, 160))  # R, G, B, Alpha
+            dim_overlay.fill((15, 10, 20, 160))  # R, G, B, Alpha
             virtual_surf.blit(dim_overlay, (0, 0))
         else:
-            virtual_surf.fill((5, 25, 10))
+            virtual_surf.fill((15, 5, 25))
         
         # Fonts
         font_main = pygame.font.SysFont("malgungothic", 24, bold=True)
@@ -89,26 +107,44 @@ class GravityHullRepairGame:
         
         # Draw indicator board
         pygame.draw.rect(virtual_surf, (10, 10, 10), (500 - 75, 200, 150, 150))
-        pygame.draw.rect(virtual_surf, (70, 220, 70), (500 - 75, 200, 150, 150), 3)
-        txt_key = font_key.render(self.target_name, True, (70, 220, 70))
+        pygame.draw.rect(virtual_surf, theme_purple, (500 - 75, 200, 150, 150), 3)
+        txt_key = font_key.render(self.target_name, True, theme_purple)
         virtual_surf.blit(txt_key, (500 - txt_key.get_width()//2, 240))
         
-        txt_under = font_sub.render("ENGINEER JOB ACTIVE: 화면에 뜨는 키를 순서대로 입력하십시오!", True, (255, 255, 240))
+        txt_under = font_sub.render(f"ENGINEER JOB ACTIVE: 화면에 뜨는 키를 순서대로 입력하십시오! ({self.current_round} / {self.total_rounds})", True, (255, 255, 240))
         virtual_surf.blit(txt_under, (500 - txt_under.get_width()//2, 380))
         
         # Draw gauge bar
+        progress_ratio = self.current_round / self.total_rounds
         pygame.draw.rect(virtual_surf, (10, 10, 10), (500 - 250, 460, 500, 35))
-        pygame.draw.rect(virtual_surf, (70, 220, 70), (500 - 250, 460, int(self.gauge * 5), 35))
+        pygame.draw.rect(virtual_surf, theme_purple, (500 - 250, 460, int(progress_ratio * 500), 35))
         pygame.draw.rect(virtual_surf, (255, 255, 240), (500 - 250, 460, 500, 35), 2)
         
-        draw_terminal_hud(virtual_surf, "GRAVITATIONAL ANOMALY HULL FIX", self.limit_time, self.elapsed_time, (70, 220, 70))
+        # Custom Terminal HUD without left-top text, and with a purple progress bar for remaining time
+        # Draw external frame borders
+        pygame.draw.rect(virtual_surf, theme_purple, (10, 10, 1000 - 20, 700 - 20), 2)
+        pygame.draw.rect(virtual_surf, theme_purple, (15, 15, 1000 - 30, 700 - 30), 1)
+        
+        # Draw time progress bar on the top-left
+        remain = max(0.0, self.limit_time - self.elapsed_time)
+        time_ratio = remain / self.limit_time
+        
+        font_hud_label = pygame.font.SysFont("malgungothic", 16, bold=True)
+        time_label = font_hud_label.render("TIME", True, theme_purple)
+        virtual_surf.blit(time_label, (30, 23))
+        
+        pygame.draw.rect(virtual_surf, (20, 10, 30), (80, 25, 220, 20))
+        pygame.draw.rect(virtual_surf, theme_purple, (80, 25, 220, 20), 1)
+        fill_w = int(216 * time_ratio)
+        if fill_w > 0:
+            pygame.draw.rect(virtual_surf, theme_purple, (82, 27, fill_w, 16))
         
         if self.state != "PLAYING":
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            overlay.fill((5, 15, 5, 220))
+            overlay.fill((15, 5, 20, 220))
             virtual_surf.blit(overlay, (0, 0))
             if self.state == "SUCCESS":
-                msg = font_main.render("■ 선체 외부 격벽 복구 성공 (SUCCESS) ■", True, (70, 220, 70))
+                msg = font_main.render("■ 선체 외부 격벽 복구 성공 (SUCCESS) ■", True, theme_purple)
                 sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
             else:
                 msg = font_main.render("🚨 구조 피로도 한계 도달 (FAIL) 🚨", True, (240, 60, 60))

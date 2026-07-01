@@ -2,14 +2,36 @@ import pygame, random, sys
 
 class CoreThermalStabilizerGame:
     def __init__(self):
+        self.bg_img = None
+        import os
+        try:
+            bg_path = os.path.join("assets", "red.jpg")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
+        except Exception as e:
+            print(f"red.jpg 로드 실패: {e}")
+            
+        # 폰트 흐릿함 개선 및 변경을 위해 폰트명을 지정합니다.
+        # "malgungothic", "gulim", "dotum", "arial" 등으로 쉽게 변경하실 수 있습니다.
+        self.font_name = "malgungothic" 
+        self.init_fonts()
         self.reset()
+        
+    def init_fonts(self):
+        self.font_main = pygame.font.SysFont(self.font_name, 24, bold=True)
+        self.font_sub = pygame.font.SysFont(self.font_name, 18)
+        self.font_hud_label = pygame.font.SysFont(self.font_name, 16, bold=True)
+        self.font_intro_title = pygame.font.SysFont(self.font_name, 16, bold=True)
+        self.font_intro_body = pygame.font.SysFont(self.font_name, 12)
+        self.font_intro_button = pygame.font.SysFont(self.font_name, 13, bold=True)
         
     def reset(self):
         self.core_x = 500
         self.start_ticks = pygame.time.get_ticks()
         self.elapsed_time = 0
-        self.limit_time = 15.0
-        self.state = "PLAYING" # PLAYING, SUCCESS, FAIL
+        self.limit_time = 10.0
+        self.state = "INTRO" # INTRO, PLAYING, SUCCESS, FAIL
         self.press_count = 0  # 키 연타 횟수 카운터
         
     def update(self):
@@ -31,13 +53,43 @@ class CoreThermalStabilizerGame:
     def handle_input(self):
         if self.state == "PLAYING":
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_a]:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
                 self.core_x -= 12
-            if keys[pygame.K_d]:
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
                 self.core_x += 12
                 
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        try:
+            from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        except ImportError:
+            settings = type('MockSettings', (), {'volume': 0.5})()
+            go_to_minigames = lambda: print("Go to minigames called")
+            play_sfx = lambda name: print(f"Play SFX: {name}")
+            keyboard_sfx = None
+            
+        if self.state == "INTRO":
+            btn_w, btn_h = 220, 35
+            btn_rect = pygame.Rect((1000 - btn_w)//2, 430, btn_w, btn_h)
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    play_sfx("sfx_end")
+                    go_to_minigames()
+                elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
+                    self.state = "PLAYING"
+                    self.start_ticks = pygame.time.get_ticks()
+                    play_sfx("sfx_click")
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    scr_w, scr_h = pygame.display.get_surface().get_size()
+                    mx, my = event.pos
+                    vmx = int(mx * (1000.0 / scr_w))
+                    vmy = int(my * (700.0 / scr_h))
+                    if btn_rect.collidepoint((vmx, vmy)):
+                        self.state = "PLAYING"
+                        self.start_ticks = pygame.time.get_ticks()
+                        play_sfx("sfx_click")
+            return
+            
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -54,47 +106,114 @@ class CoreThermalStabilizerGame:
             if event.key == pygame.K_ESCAPE:
                 play_sfx("sfx_end")
                 go_to_minigames()
-            elif event.key in [pygame.K_a, pygame.K_d]:
-                self.press_count += 1
-                if self.press_count >= 18:
-                    self.state = "SUCCESS"
                 
     def draw(self, surface):
-        from visual_effects import draw_terminal_hud
-        from main import CRT_GREEN, WHITE, get_scaled_font
+        try:
+            from main import CRT_GREEN, WHITE, get_scaled_font
+        except ImportError:
+            CRT_GREEN = (0, 255, 0)
+            WHITE = (255, 255, 255)
+            get_scaled_font = lambda f, s: f
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
-        virtual_surf.fill((35, 10, 10))
+        theme_red = (220, 50, 40)
         
-        # Fonts
-        font_main = pygame.font.SysFont("malgungothic", 24, bold=True)
-        font_sub = pygame.font.SysFont("malgungothic", 18)
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
+            # 가독성을 높이기 위해 옅은 어두운 오버레이 추가
+            dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            dim_overlay.fill((20, 5, 5, 160))  # R, G, B, Alpha
+            virtual_surf.blit(dim_overlay, (0, 0))
+        else:
+            virtual_surf.fill((35, 10, 10))
         
         # Draw safe zones & core line
         pygame.draw.rect(virtual_surf, (50, 20, 20), (150, 350 - 25, 700, 50))
         pygame.draw.rect(virtual_surf, (60, 220, 100), (500 - 60, 350 - 25, 120, 50), 2) # Target zone
-        pygame.draw.line(virtual_surf, (220, 50, 40), (150, 350), (850, 350), 3)
+        pygame.draw.line(virtual_surf, theme_red, (150, 350), (850, 350), 3)
         
         # Draw moving core circle
-        pygame.draw.circle(virtual_surf, (220, 50, 40), (int(self.core_x), 350), 22)
+        pygame.draw.circle(virtual_surf, theme_red, (int(self.core_x), 350), 22)
         pygame.draw.circle(virtual_surf, (245, 240, 235), (int(self.core_x), 350), 10)
         
-        # Draw HUD info
-        draw_terminal_hud(virtual_surf, "CORE THERMAL STABILIZER SEQUENCE", self.limit_time, self.elapsed_time, (220, 50, 40))
-        txt_guide = font_sub.render("DEVELOPER JOB: [A]/[D] 키로 중심 유지 (18회 키 입력 시 긴급 수동 안정화 가능)", True, (245, 240, 235))
-        virtual_surf.blit(txt_guide, (40, 60))
+        # Draw external frame borders
+        pygame.draw.rect(virtual_surf, theme_red, (10, 10, 1000 - 20, 700 - 20), 2)
+        pygame.draw.rect(virtual_surf, theme_red, (15, 15, 1000 - 30, 700 - 30), 1)
         
-        if self.state != "PLAYING":
+        # Draw time progress bar on the top-left
+        remain_time = max(0.0, self.limit_time - self.elapsed_time)
+        time_ratio = remain_time / self.limit_time
+        
+        time_label = self.font_hud_label.render("TIME", True, theme_red)
+        virtual_surf.blit(time_label, (30, 23))
+        
+        pygame.draw.rect(virtual_surf, (30, 10, 10), (80, 25, 220, 20))
+        pygame.draw.rect(virtual_surf, theme_red, (80, 25, 220, 20), 1)
+        fill_w = int(216 * time_ratio)
+        if fill_w > 0:
+            pygame.draw.rect(virtual_surf, theme_red, (82, 27, fill_w, 16))
+        
+        if self.state == "INTRO":
+            overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            virtual_surf.blit(overlay, (0, 0))
+            
+            dialog_w, dialog_h = 500, 260
+            dialog_rect = pygame.Rect((1000 - dialog_w)//2, (700 - dialog_h)//2, dialog_w, dialog_h)
+            pygame.draw.rect(virtual_surf, (20, 20, 30), dialog_rect, border_radius=10)
+            pygame.draw.rect(virtual_surf, theme_red, dialog_rect, width=3, border_radius=10)
+            
+            txt_title = self.font_intro_title.render("🚨 코어 온도 조절 장치 수동 제어", True, theme_red)
+            virtual_surf.blit(txt_title, (500 - txt_title.get_width()//2, dialog_rect.top + 20))
+            
+            instructions = [
+                "코어가 과열되어 중심을 잃고 폭주하려 합니다.",
+                "[A] / [D] 또는 방향키로 코어의 중심을 안전 범위 내로 유지해 주세요.",
+                "",
+                "⏱️ 제한 시간: 10초",
+                "🔴 붉은색 코어가 좌우 바운더리를 벗어나면 용해 폭발합니다.",
+                "⌨️ 제어: A, D 또는 Left, Right 방향키"
+            ]
+            
+            y_offset = dialog_rect.top + 60
+            for line in instructions:
+                color = WHITE
+                if "제한 시간" in line:
+                    color = (255, 150, 0)
+                elif "붉은색 코어" in line:
+                    color = theme_red
+                
+                txt_line = self.font_intro_body.render(line, True, color)
+                virtual_surf.blit(txt_line, (500 - txt_line.get_width()//2, y_offset))
+                y_offset += 20
+                
+            btn_w, btn_h = 220, 35
+            btn_rect = pygame.Rect((1000 - btn_w)//2, dialog_rect.bottom - 50, btn_w, btn_h)
+            
+            scr_w, scr_h = surface.get_size()
+            mx, my = pygame.mouse.get_pos()
+            vmx = int(mx * (1000.0 / scr_w))
+            vmy = int(my * (700.0 / scr_h))
+            hover = btn_rect.collidepoint((vmx, vmy))
+            
+            btn_color = (200, 60, 50) if hover else (140, 30, 25)
+            pygame.draw.rect(virtual_surf, btn_color, btn_rect, border_radius=5)
+            pygame.draw.rect(virtual_surf, WHITE, btn_rect, width=2, border_radius=5)
+            
+            txt_btn = self.font_intro_button.render("시작하기 (Space/Enter)", True, WHITE)
+            virtual_surf.blit(txt_btn, (500 - txt_btn.get_width()//2, btn_rect.centery - txt_btn.get_height()//2))
+            
+        elif self.state != "PLAYING":
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((25, 5, 5, 230))
             virtual_surf.blit(overlay, (0, 0))
             if self.state == "SUCCESS":
-                msg = font_main.render("■ 코어 온도 안정화 제어 성공 (SUCCESS) ■", True, (100, 255, 150))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                msg = self.font_main.render("■ 코어 온도 안정화 제어 성공 (SUCCESS) ■", True, (100, 255, 150))
+                sub = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
             else:
-                msg = font_main.render("🚨 코어 과열 용해 파손 (FAIL) 🚨", True, (220, 50, 40))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                msg = self.font_main.render("🚨 코어 과열 용해 파손 (FAIL) 🚨", True, theme_red)
+                sub = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             

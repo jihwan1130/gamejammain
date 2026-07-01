@@ -257,16 +257,32 @@ class ResourcesGame:
                     play_sfx("sfx_click")
                 elif event.key == pygame.K_ESCAPE:
                     self.stop_run_sound()
-                    go_to_minigames()
+                    if settings.is_campaign:
+                        from main import go_to_main_menu
+                        go_to_main_menu()
+                    else:
+                        go_to_minigames()
                     play_sfx("sfx_end")
         else:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.stop_run_sound()
-                    go_to_minigames()
+                    if settings.is_campaign:
+                        from main import go_to_main_menu
+                        go_to_main_menu()
+                    else:
+                        go_to_minigames()
                     play_sfx("sfx_end")
                 elif event.key == pygame.K_RETURN and self.is_clear_finished():
-                    self.reset()
+                    if settings.is_campaign:
+                        self.stop_run_sound()
+                        settings.current_day = 1
+                        settings.state = "DAY_1"
+                        if hasattr(settings, 'day_1_manager') and settings.day_1_manager:
+                            settings.day_1_manager.reset()
+                        play_sfx("sfx_click")
+                    else:
+                        self.reset()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if self.is_cleared:
                     w, h = settings.width, settings.height
@@ -276,8 +292,15 @@ class ResourcesGame:
                     btn_rect = pygame.Rect((w - btn_w)//2, dialog_rect.bottom - 75, btn_w, btn_h)
                     if btn_rect.collidepoint(event.pos):
                         self.stop_run_sound()
-                        go_to_minigames()
-                        play_sfx("sfx_end")
+                        if settings.is_campaign:
+                            settings.current_day = 1
+                            settings.state = "DAY_1"
+                            if hasattr(settings, 'day_1_manager') and settings.day_1_manager:
+                                settings.day_1_manager.reset()
+                            play_sfx("sfx_click")
+                        else:
+                            go_to_minigames()
+                            play_sfx("sfx_end")
                     
     def is_clear_finished(self):
         return self.is_cleared
@@ -666,7 +689,11 @@ class ResourcesGame:
             pygame.draw.rect(surface, btn_color, btn_rect, border_radius=5)
             pygame.draw.rect(surface, self.WHITE, btn_rect, width=2, border_radius=5)
             
-            self.draw_text(surface, "종료하기 (ESC 키 입력)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
+            from main import settings
+            if settings.is_campaign:
+                self.draw_text(surface, "다음 단계로 (Enter/클릭)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
+            else:
+                self.draw_text(surface, "종료하기 (ESC 키 입력)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
 
     @property
     def minigame_start_time(self):
