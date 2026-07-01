@@ -31,6 +31,20 @@ class Day0Manager:
         except Exception as e:
             print(f"사운드 로드 실패: {e}")
             
+        # 3. key2.mp3 또는 key2.MP3 로드
+        self.type_sound = None
+        self.type_sound_channel = None
+        try:
+            sound_path = os.path.join("assets", "key2.mp3")
+            if not os.path.exists(sound_path):
+                sound_path = os.path.join("assets", "key2.MP3")
+            if os.path.exists(sound_path):
+                self.type_sound = pygame.mixer.Sound(sound_path)
+            else:
+                print(f"경고: key2.mp3 또는 key2.MP3 파일이 존재하지 않습니다.")
+        except Exception as e:
+            print(f"key2.mp3 사운드 로드 실패: {e}")
+            
         self.init_fonts()
         self.reset()
         
@@ -51,7 +65,15 @@ class Day0Manager:
     def reset(self):
         self.state = "GLITCH" # GLITCH, MAIN_SCREEN
         self.start_ticks = pygame.time.get_ticks()
-        self.glitch_duration = 2500 # 지지직 거리는 효과 (2.5초로 설정)
+        self.glitch_duration = 2000 # 지지직 거리는 효과 (2초로 설정)
+        
+        # 타이핑 사운드 채널 정지
+        if hasattr(self, 'type_sound_channel') and self.type_sound_channel:
+            try:
+                self.type_sound_channel.stop()
+            except:
+                pass
+        self.type_sound_channel = None
         
         # tv.mp3 또는 tv_glitch.mp3 루프 재생 (DAY_0 진입 시에만 재생)
         is_active = False
@@ -100,9 +122,12 @@ class Day0Manager:
             else:
                 break
 
+        is_actively_typing = False
+
         if self.typewriter_index < len(logs):
             current_line = logs[self.typewriter_index]
             if self.char_index < len(current_line):
+                is_actively_typing = True
                 if now - self.last_char_ticks > 50: # 타이핑 속도 조절 (2배 느리게)
                     self.char_index += 1
                     self.last_char_ticks = now
@@ -118,8 +143,37 @@ class Day0Manager:
                     self.typewriter_index += 1
                     self.char_index = 0
                     self.last_char_ticks = now
+                    is_actively_typing = True
         else:
             self.displayed_lines = logs
+
+        # 글씨 재생 여부에 따라 루프 재생/정지 제어
+        if self.type_sound:
+            if is_actively_typing:
+                playing = False
+                if self.type_sound_channel is not None:
+                    try:
+                        playing = self.type_sound_channel.get_busy()
+                    except:
+                        pass
+                
+                if not playing:
+                    try:
+                        from main import settings
+                        self.type_sound.set_volume(settings.volume)
+                    except:
+                        self.type_sound.set_volume(0.5)
+                    try:
+                        self.type_sound_channel = self.type_sound.play(loops=-1)
+                    except Exception as e:
+                        print(f"사운드 재생 실패: {e}")
+            else:
+                if self.type_sound_channel is not None:
+                    try:
+                        self.type_sound_channel.stop()
+                    except:
+                        pass
+                    self.type_sound_channel = None
             
     def update(self):
         now = pygame.time.get_ticks()
@@ -157,6 +211,12 @@ class Day0Manager:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             if self.glitch_sound:
                 self.glitch_sound.stop()
+            if hasattr(self, 'type_sound_channel') and self.type_sound_channel:
+                try:
+                    self.type_sound_channel.stop()
+                except:
+                    pass
+                self.type_sound_channel = None
             try:
                 from main import go_to_main_menu, play_sfx
                 play_sfx("sfx_end")
@@ -178,6 +238,12 @@ class Day0Manager:
                             is_last_line_finished = True
                             
                     if is_last_line_finished:
+                        if hasattr(self, 'type_sound_channel') and self.type_sound_channel:
+                            try:
+                                self.type_sound_channel.stop()
+                            except:
+                                pass
+                            self.type_sound_channel = None
                         try:
                             from main import settings, play_sfx
                             play_sfx("sfx_click")

@@ -1608,6 +1608,8 @@ def main():
                         settings.minigame_paused = False
                         pause_duration = pygame.time.get_ticks() - settings.minigame_pause_started_at
                         active_game = stage_mappings.get(settings.state)
+                        if settings.state == "DAY_5" and active_game:
+                            active_game = getattr(active_game, 'minigame', None)
                         if active_game:
                             active_game.start_ticks += pause_duration
                         elif settings.state == "RESOURCE_GAME":
@@ -1623,11 +1625,16 @@ def main():
                     elif settings.global_pause_exit_rect.collidepoint(event.pos):
                         settings.minigame_paused = False
                         play_sfx("sfx_end")
-                        go_to_minigames()
+                        if settings.is_campaign:
+                            go_to_main_menu()
+                        else:
+                            go_to_minigames()
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     settings.minigame_paused = False
                     pause_duration = pygame.time.get_ticks() - settings.minigame_pause_started_at
                     active_game = stage_mappings.get(settings.state)
+                    if settings.state == "DAY_5" and active_game:
+                        active_game = getattr(active_game, 'minigame', None)
                     if active_game:
                         active_game.start_ticks += pause_duration
                     elif settings.state == "RESOURCE_GAME":
@@ -1649,10 +1656,16 @@ def main():
                         play_sfx("sfx_end")
                     elif meteor_game.state in ["WON", "LOST", "PAUSED"]:
                         play_sfx("sfx_end")
-                        go_to_minigames()
+                        if settings.is_campaign:
+                            go_to_main_menu()
+                        else:
+                            go_to_minigames()
                     continue
-                elif settings.state in ["RESOURCE_GAME", "FIRE_GAME", "ROBOT_GAME", "GRAVITY_GAME", "OVERHEAT_GAME", "RIOT_GAME", "LIFE_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "GRID_GAME", "LANDING_GAME", "CREW_CALM_GAME", "CRANK_LANDING_GAME"]:
+                elif settings.state in ["RESOURCE_GAME", "FIRE_GAME", "ROBOT_GAME", "GRAVITY_GAME", "OVERHEAT_GAME", "RIOT_GAME", "LIFE_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "GRID_GAME", "LANDING_GAME", "CREW_CALM_GAME", "CRANK_LANDING_GAME"] or (settings.state == "DAY_5" and stage_mappings.get("DAY_5") and getattr(stage_mappings["DAY_5"], 'state', None) == "GAMEPLAY"):
                     active_game = stage_mappings.get(settings.state)
+                    if settings.state == "DAY_5" and active_game:
+                        active_game = getattr(active_game, 'minigame', None)
+                        
                     if active_game and hasattr(active_game, 'state') and active_game.state in ["SUCCESS", "FAIL", "WON", "LOST"]:
                         # Game is finished, do not pause. Fall through to allow K_ESCAPE to return to menu
                         pass

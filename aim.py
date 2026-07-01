@@ -104,12 +104,15 @@ class CrewCalmGame:
         pass
         
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        from main import settings, go_to_minigames, go_to_main_menu, play_sfx, keyboard_sfx
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     play_sfx("sfx_end")
-                    go_to_minigames()
+                    if settings.is_campaign:
+                        go_to_main_menu()
+                    else:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
@@ -120,7 +123,10 @@ class CrewCalmGame:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 play_sfx("sfx_end")
-                go_to_minigames()
+                if settings.is_campaign:
+                    go_to_main_menu()
+                else:
+                    go_to_minigames()
                 
     def draw(self, surface):
         from main import settings, WHITE, get_scaled_font
