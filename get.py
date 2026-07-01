@@ -66,10 +66,15 @@ class ResourcesGame:
             print(f"change.MP3 로드 실패: {e}")
             
         self.is_playing_run_sfx = False
-        
+        self.pressed_keys = set()
         self.reset()
         
     def reset(self):
+        self.pressed_keys.clear()
+        try:
+            pygame.key.stop_text_input()
+        except:
+            pass
         # Game state parameters from 2.py
         self.state = "INTRO"
         
@@ -242,6 +247,12 @@ class ResourcesGame:
         self.farm_start_time = pygame.time.get_ticks()
         
     def handle_event(self, event):
+        # Key state tracking (to bypass IME filter issues on some platforms)
+        if event.type == pygame.KEYDOWN:
+            self.pressed_keys.add(event.key)
+        elif event.type == pygame.KEYUP:
+            self.pressed_keys.discard(event.key)
+
         from main import go_to_minigames, play_sfx, settings
         if self.state == "INTRO":
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -325,15 +336,25 @@ class ResourcesGame:
         speed = 5.8  # 난이도 조절: 최대한 열심히 움직여도 주황색 자원들을 평균 130정도까지 모을 수 있도록 속도 조절
         dx, dy = 0, 0
         
-        # 대각선 이동 방지: 한 번에 한 축으로만 이동 가능하도록 설정
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        # 대각선 이동 허용 및 속도 일관성 보정
+        is_left = keys[pygame.K_LEFT] or keys[pygame.K_a] or (pygame.K_LEFT in self.pressed_keys) or (pygame.K_a in self.pressed_keys)
+        is_right = keys[pygame.K_RIGHT] or keys[pygame.K_d] or (pygame.K_RIGHT in self.pressed_keys) or (pygame.K_d in self.pressed_keys)
+        is_up = keys[pygame.K_UP] or keys[pygame.K_w] or (pygame.K_UP in self.pressed_keys) or (pygame.K_w in self.pressed_keys)
+        is_down = keys[pygame.K_DOWN] or keys[pygame.K_s] or (pygame.K_DOWN in self.pressed_keys) or (pygame.K_s in self.pressed_keys)
+
+        if is_left:
             dx = -speed
-        elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        elif is_right:
             dx = speed
-        elif keys[pygame.K_UP] or keys[pygame.K_w]:
+            
+        if is_up:
             dy = -speed
-        elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        elif is_down:
             dy = speed
+            
+        if dx != 0 and dy != 0:
+            dx *= 0.7071
+            dy *= 0.7071
         
         self.player_rect.x += dx
         for b in self.obstacles:
@@ -598,6 +619,10 @@ class ResourcesGame:
         self.draw_text(surface, f"산소: {self.resources['산소']}/200 | 전기: {self.resources['전기']}/200 | 정신력: {self.resources['정신력']}/200", font_small, self.WHITE, 20, 95)
         
         # INTRO popup dialog overlay
+        OFF_WHITE = (245, 245, 245)
+        CYBER_GREEN = (0, 220, 100)
+        LIME_GREEN = (100, 240, 150)
+
         if self.state == "INTRO":
             overlay = pygame.Surface((w, h), pygame.SRCALPHA)
             overlay.fill((0, 0, 0, 180))
@@ -606,8 +631,11 @@ class ResourcesGame:
             dialog_w, dialog_h = 750, 400
             dialog_rect = pygame.Rect((w - dialog_w)//2, (h - dialog_h)//2, dialog_w, dialog_h)
             
-            pygame.draw.rect(surface, (20, 20, 30), dialog_rect, border_radius=10)
-            pygame.draw.rect(surface, self.ORANGE, dialog_rect, width=3, border_radius=10)
+            # Draw translucent dialog box with border-radius of 12px
+            dialog_surf = pygame.Surface((dialog_w, dialog_h), pygame.SRCALPHA)
+            pygame.draw.rect(dialog_surf, (15, 8, 3, 204), (0, 0, dialog_w, dialog_h), border_radius=12)
+            pygame.draw.rect(dialog_surf, (0, 220, 100, 178), (0, 0, dialog_w, dialog_h), width=2, border_radius=12)
+            surface.blit(dialog_surf, dialog_rect.topleft)
             
             font_title = get_scaled_font(28, is_korean=True)
             font_body = get_scaled_font(18, is_korean=True)
@@ -627,11 +655,11 @@ class ResourcesGame:
             
             y_offset = dialog_rect.top + 100
             for line in instructions:
-                color = self.WHITE
+                color = OFF_WHITE
                 if "제한 시간" in line:
                     color = self.ORANGE
                 elif "초록색 크루" in line:
-                    color = self.GREEN
+                    color = LIME_GREEN
                 elif "주황색 자원" in line:
                     color = self.ORANGE
                 self.draw_text(surface, line, font_body, color, w//2, y_offset, center=True)
@@ -643,12 +671,16 @@ class ResourcesGame:
             mouse_pos = pygame.mouse.get_pos()
             hover = btn_rect.collidepoint(mouse_pos)
             
-            btn_color = (40, 180, 100) if hover else (30, 140, 80)
-            pygame.draw.rect(surface, btn_color, btn_rect, border_radius=5)
-            pygame.draw.rect(surface, self.WHITE, btn_rect, width=2, border_radius=5)
+            # Rounded translucent button matching theme
+            btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+            btn_bg_color = (30, 16, 6, 204) if hover else (15, 8, 3, 204)
+            pygame.draw.rect(btn_surf, btn_bg_color, (0, 0, btn_w, btn_h), border_radius=8)
+            btn_border_color = (100, 240, 150, 220) if hover else (0, 220, 100, 178)
+            pygame.draw.rect(btn_surf, btn_border_color, (0, 0, btn_w, btn_h), width=2, border_radius=8)
+            surface.blit(btn_surf, btn_rect.topleft)
             
-            self.draw_text(surface, "시작하기 (Space/Enter)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
-
+            self.draw_text(surface, "▶ 시작하기 (Space/Enter)", font_button, LIME_GREEN, w//2, btn_rect.centery, center=True)
+ 
         # CLEAR popup dialog overlay
         if self.is_cleared:
             overlay = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -658,14 +690,17 @@ class ResourcesGame:
             dialog_w, dialog_h = 750, 420
             dialog_rect = pygame.Rect((w - dialog_w)//2, (h - dialog_h)//2, dialog_w, dialog_h)
             
-            pygame.draw.rect(surface, (20, 30, 20), dialog_rect, border_radius=10)
-            pygame.draw.rect(surface, self.GREEN, dialog_rect, width=3, border_radius=10)
+            # Draw translucent dialog box with border-radius of 12px
+            dialog_surf = pygame.Surface((dialog_w, dialog_h), pygame.SRCALPHA)
+            pygame.draw.rect(dialog_surf, (15, 8, 3, 204), (0, 0, dialog_w, dialog_h), border_radius=12)
+            pygame.draw.rect(dialog_surf, (0, 220, 100, 178), (0, 0, dialog_w, dialog_h), width=2, border_radius=12)
+            surface.blit(dialog_surf, dialog_rect.topleft)
             
             font_title = get_scaled_font(28, is_korean=True)
             font_body = get_scaled_font(18, is_korean=True)
             font_button = get_scaled_font(20, is_korean=True)
             
-            self.draw_text(surface, "🎉 긴급 파밍 종료 (CLEAR)", font_title, self.GREEN, w//2, dialog_rect.top + 40, center=True)
+            self.draw_text(surface, "🎉 긴급 파밍 종료 (CLEAR)", font_title, LIME_GREEN, w//2, dialog_rect.top + 40, center=True)
             
             # Crew summary
             crew_str = ", ".join(self.my_crew) if self.my_crew else "없음"
@@ -682,12 +717,10 @@ class ResourcesGame:
             
             y_offset = dialog_rect.top + 100
             for line in summary_lines:
-                color = self.WHITE
-                if "수집 결과" in line:
-                    color = self.WHITE
-                elif "탑승한 크루원" in line:
-                    color = self.GREEN
-                elif "최종 수집 자원" in line:
+                color = OFF_WHITE
+                if "탑승한 크루원" in line or "최종 수집 자원" in line:
+                    color = LIME_GREEN
+                elif "산소:" in line:
                     color = self.ORANGE
                 self.draw_text(surface, line, font_body, color, w//2, y_offset, center=True)
                 y_offset += 30
@@ -699,15 +732,19 @@ class ResourcesGame:
             mouse_pos = pygame.mouse.get_pos()
             hover = btn_rect.collidepoint(mouse_pos)
             
-            btn_color = (40, 150, 180) if hover else (30, 110, 140)
-            pygame.draw.rect(surface, btn_color, btn_rect, border_radius=5)
-            pygame.draw.rect(surface, self.WHITE, btn_rect, width=2, border_radius=5)
+            # Rounded translucent button matching theme
+            btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+            btn_bg_color = (30, 16, 6, 204) if hover else (15, 8, 3, 204)
+            pygame.draw.rect(btn_surf, btn_bg_color, (0, 0, btn_w, btn_h), border_radius=8)
+            btn_border_color = (100, 240, 150, 220) if hover else (0, 220, 100, 178)
+            pygame.draw.rect(btn_surf, btn_border_color, (0, 0, btn_w, btn_h), width=2, border_radius=8)
+            surface.blit(btn_surf, btn_rect.topleft)
             
             from main import settings
             if settings.is_campaign:
-                self.draw_text(surface, "다음 단계로 (Enter/클릭)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
+                self.draw_text(surface, "▶ 다음 단계로 (Enter/클릭)", font_button, LIME_GREEN, w//2, btn_rect.centery, center=True)
             else:
-                self.draw_text(surface, "종료하기 (ESC 키 입력)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
+                self.draw_text(surface, "▶ 종료하기 (ESC 키 입력)", font_button, LIME_GREEN, w//2, btn_rect.centery, center=True)
 
     @property
     def minigame_start_time(self):

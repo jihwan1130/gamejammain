@@ -5,10 +5,10 @@ import random
 
 class Day0Manager:
     def __init__(self):
-        # 1. assets\start.png 로드
+        # 1. assets\start2.png 로드
         self.main_img = None
         try:
-            img_path = os.path.join("assets", "start.png")
+            img_path = os.path.join("assets", "start2.png")
             if os.path.exists(img_path):
                 # 대형 이미지이므로 convert() 처리 후 1000x700 크기로 사전 스케일링
                 raw_img = pygame.image.load(img_path).convert()
@@ -16,7 +16,7 @@ class Day0Manager:
             else:
                 print(f"경고: {img_path} 파일이 존재하지 않습니다.")
         except Exception as e:
-            print(f"start.png 로드 실패: {e}")
+            print(f"start2.png 로드 실패: {e}")
             
         # 2. tv.mp3 또는 tv_glitch.mp3 로드
         self.glitch_sound = None
@@ -252,7 +252,7 @@ class Day0Manager:
                 self.displayed_lines = []
                 self.last_char_ticks = now
                 
-                # start.png 가 나타날 때 orbit.mp3 BGM 재생
+                # start2.png 가 나타날 때 orbit.mp3 BGM 재생
                 try:
                     import os
                     from main import play_music_track
@@ -419,7 +419,7 @@ class Day0Manager:
                 virtual_surf.fill((10, 10, 15))
                 # 대체 텍스트
                 font = pygame.font.SysFont(None, 40)
-                text = font.render("START SCREEN (start.png is missing)", True, (255, 255, 255))
+                text = font.render("START SCREEN (start2.png is missing)", True, (255, 255, 255))
                 virtual_surf.blit(text, (300, 330))
                 
             # 텍스트 직접 출력 (대화 상자 없음, 가독성을 위한 그림자 효과 적용)

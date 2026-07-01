@@ -61,7 +61,10 @@ class Day4Manager:
         return True
 
     def reset(self):
-        self.state = "INTRO_TEXT" # INTRO_TEXT, GLITCH_BG, WARNING_TOAST
+        self.state = "INTRO_TEXT" # INTRO_TEXT, NAVIGATION, GLITCH_BG, WARNING_TOAST, PEACEFUL_TOAST
+        self.navigation_start_ticks = 0
+        self.check_count = 0
+        self.incident_triggered = False
         
         self.comments = [
             "4일차 항해를 시작했습니다.",
@@ -282,6 +285,40 @@ class Day4Manager:
     def update(self):
         if self.state == "INTRO_TEXT":
             self.update_typewriter(self.comments)
+        elif self.state == "NAVIGATION":
+            now = pygame.time.get_ticks()
+            elapsed = (now - self.navigation_start_ticks) / 1000.0
+            
+            # 5초마다 75% 확률 체크
+            expected_checks = int(elapsed // 5.0)
+            if expected_checks > self.check_count and self.check_count < 4:
+                self.check_count = expected_checks
+                import random
+                if random.random() < 0.75:
+                    self.incident_triggered = True
+                    self.state = "GLITCH_BG"
+                    self.glitch_entered_ticks = pygame.time.get_ticks()
+                    if self.glitch_sound:
+                        try:
+                            self.get_main_ref()
+                            settings = getattr(self, 'settings', None)
+                            vol = settings.volume if settings else 0.5
+                            self.glitch_sound.set_volume(vol * 0.7)
+                            self.glitch_sound.play(-1) # 루프 재생
+                        except:
+                            pass
+                    try:
+                        self.get_main_ref()
+                        play_sfx = getattr(self, 'play_sfx', None)
+                        if play_sfx:
+                            play_sfx("sfx_crash")
+                    except:
+                        pass
+            
+            if not self.incident_triggered and elapsed >= 20.0:
+                self.state = "PEACEFUL_TOAST"
+                self.stop_all_sounds()
+                
         elif self.state == "GLITCH_BG":
             # 4초(4000ms) 대기 후 경고 창(WARNING_TOAST)으로 자동 변환
             now = pygame.time.get_ticks()
@@ -343,16 +380,10 @@ class Day4Manager:
                             
                     if is_finished:
                         self.stop_all_sounds()
-                        self.state = "GLITCH_BG"
-                        self.glitch_entered_ticks = pygame.time.get_ticks()
-                        if self.glitch_sound:
-                            try:
-                                settings = getattr(self, 'settings', None)
-                                vol = settings.volume if settings else 0.5
-                                self.glitch_sound.set_volume(vol * 0.7)
-                                self.glitch_sound.play(-1) # 루프 재생
-                            except:
-                                pass
+                        self.state = "NAVIGATION"
+                        self.navigation_start_ticks = pygame.time.get_ticks()
+                        self.check_count = 0
+                        self.incident_triggered = False
                         try:
                             if play_sfx:
                                 play_sfx("sfx_click")
@@ -371,6 +402,17 @@ class Day4Manager:
             elif self.state == "WARNING_TOAST":
                 if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
                     self.start_assigned_game()
+            elif self.state == "PEACEFUL_TOAST":
+                if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
+                    self.stop_all_sounds()
+                    if play_sfx:
+                        try:
+                            play_sfx("sfx_click")
+                        except:
+                            pass
+                    settings = getattr(self, 'settings', None)
+                    if settings:
+                        settings.campaign_next_requested = True
                     
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.state == "WARNING_TOAST":
@@ -389,6 +431,29 @@ class Day4Manager:
                 btn_rect = pygame.Rect(400, 410, 200, 50)
                 if btn_rect.collidepoint(vmx, vmy):
                     self.start_assigned_game()
+            elif self.state == "PEACEFUL_TOAST":
+                mx, my = event.pos
+                try:
+                    settings = getattr(self, 'settings', None)
+                    if settings:
+                        vmx = int(mx * 1000 / settings.width)
+                        vmy = int(my * 700 / settings.height)
+                    else:
+                        vmx, vmy = mx, my
+                except:
+                    vmx, vmy = mx, my
+                    
+                btn_rect = pygame.Rect(400, 410, 200, 50)
+                if btn_rect.collidepoint(vmx, vmy):
+                    self.stop_all_sounds()
+                    if play_sfx:
+                        try:
+                            play_sfx("sfx_click")
+                        except:
+                            pass
+                    settings = getattr(self, 'settings', None)
+                    if settings:
+                        settings.campaign_next_requested = True
 
     def draw(self, surface):
         self.get_main_ref()
@@ -427,6 +492,60 @@ class Day4Manager:
                 txt_surf = self.font_body.render(line, True, color)
                 virtual_surf.blit(txt_surf, (box_x + 40, text_y))
                 text_y += 38
+                
+        elif self.state == "NAVIGATION":
+            # Blinking "SYSTEM NORMAL / NAVIGATING..."
+            blink = (pygame.time.get_ticks() // 500) % 2
+            if blink:
+                nav_txt = self.font_btn.render("▶ NAVIGATING - SYSTEM NORMAL", True, (0, 220, 100))
+                virtual_surf.blit(nav_txt, (50, 50))
+                
+        elif self.state == "PEACEFUL_TOAST":
+            box_w = 700
+            box_h = 280
+            box_x = (1000 - box_w) // 2
+            box_y = (700 - box_h) // 2
+            
+            toast_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+            pygame.draw.rect(toast_surf, (3, 15, 8, 204), (0, 0, box_w, box_h), border_radius=12)
+            pygame.draw.rect(toast_surf, (0, 220, 100, 178), (0, 0, box_w, box_h), width=2, border_radius=12)
+            virtual_surf.blit(toast_surf, (box_x, box_y))
+            
+            header_str = "🟢 안전 항해 프로토콜 🟢"
+            header_surf = self.font_title.render(header_str, True, (0, 220, 100))
+            virtual_surf.blit(header_surf, (500 - header_surf.get_width() // 2, box_y + 35))
+            
+            line1 = "오늘은 평화롭게 지나갔습니다."
+            line2 = "다음 날로 넘어갑니다."
+            
+            s_surf1 = self.font_body.render(line1, True, (245, 245, 245))
+            virtual_surf.blit(s_surf1, (500 - s_surf1.get_width() // 2, box_y + 105))
+            
+            s_surf2 = self.font_body.render(line2, True, (245, 245, 245))
+            virtual_surf.blit(s_surf2, (500 - s_surf2.get_width() // 2, box_y + 145))
+            
+            mx, my = pygame.mouse.get_pos()
+            try:
+                if settings:
+                    vmx = int(mx * 1000 / settings.width)
+                    vmy = int(my * 700 / settings.height)
+                else:
+                    vmx, vmy = mx, my
+            except:
+                vmx, vmy = mx, my
+                
+            btn_rect = pygame.Rect(400, 410, 200, 50)
+            is_hovered = btn_rect.collidepoint(vmx, vmy)
+            
+            btn_surf = pygame.Surface((200, 50), pygame.SRCALPHA)
+            btn_bg_color = (30, 16, 6, 204) if is_hovered else (15, 8, 3, 204)
+            pygame.draw.rect(btn_surf, btn_bg_color, (0, 0, 200, 50), border_radius=8)
+            btn_border_color = (100, 240, 150, 220) if is_hovered else (0, 220, 100, 178)
+            pygame.draw.rect(btn_surf, btn_border_color, (0, 0, 200, 50), width=2, border_radius=8)
+            virtual_surf.blit(btn_surf, btn_rect.topleft)
+            
+            btn_txt = self.font_btn.render("▶ 다음 단계로", True, (100, 240, 150))
+            virtual_surf.blit(btn_txt, (500 - btn_txt.get_width() // 2, 410 + (50 - btn_txt.get_height()) // 2))
                 
         elif self.state == "GLITCH_BG":
             if random.random() < 0.20:
