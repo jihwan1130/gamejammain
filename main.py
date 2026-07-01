@@ -1061,6 +1061,16 @@ class MeteorGame:
                 "alpha": random.randint(50, 150)
             })
         
+    def apply_penalty(self):
+        resources_game = getattr(settings, 'resources_game', None)
+        if not resources_game:
+            return
+        if hasattr(resources_game, 'resources'):
+            for key in ["전기", "산소", "정신력"]:
+                if key in resources_game.resources:
+                    resources_game.resources[key] = max(0, resources_game.resources[key] - 30)
+            print(f"[PENALTY] Meteor crash. Oxygen, Electric, Mental decreased by 30.")
+
     def update(self):
         current_ticks = pygame.time.get_ticks()
         
