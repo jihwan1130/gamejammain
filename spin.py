@@ -124,6 +124,11 @@ class CrankLandingGame:
             # 승리/실패 조건 분기
             if self.progress_gauge >= 100.0:
                 self.state = "SUCCESS"
+                settings = get_main_val('settings')
+                if settings and hasattr(settings, 'resources_game') and settings.resources_game:
+                    res = settings.resources_game.resources
+                    for k in res:
+                        res[k] = 1
             elif self.elapsed_time >= self.limit_time:
                 self.state = "SELECT_SACRIFICE"
                 

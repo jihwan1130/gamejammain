@@ -63,6 +63,12 @@ class Day2Manager:
     def reset(self):
         self.state = "INTRO_TEXT" # INTRO_TEXT, NAVIGATION, GLITCH_BG, WARNING_TOAST, PEACEFUL_TOAST
         self.navigation_start_ticks = 0
+        if self.__class__.__module__ == '__main__':
+            try:
+                pygame.mixer.music.load(os.path.join("assets", "engine.mp3"))
+                pygame.mixer.music.play(-1)
+            except Exception as e:
+                print(f"engine.mp3 재생 실패: {e}")
         self.check_count = 0
         self.incident_triggered = False
         
@@ -126,7 +132,7 @@ class Day2Manager:
 
         # 만약 단독 실행 등으로 배정된 게임이 없다면 랜덤으로 하나 선택
         if not self.assigned_game:
-            candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME"]
+            candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "METEOR_GAME"]
             self.assigned_game = random.choice(candidates)
 
         # 게임별 멘트 정의
@@ -137,7 +143,8 @@ class Day2Manager:
             "RIOT_GAME": ["시민들이 장기간 과도한 긴장감에 시달려 폭동이 일어났습니다.", "시민들을 진정시키십시오."],
             "NAV_GAME": ["항법 장치가 고장나 우주선이 방향을 찾을 수 없습니다.", "항법 장치를 보정하여, 우주선을 수리해주십시오."],
             "ELECTRIC_GAME": ["에너지 장치가 고장났습니다.", "고압실에 들어가 이를 수리하십시오."],
-            "QUARANTINE_GAME": ["장시간의 비행 속에 승무원이 공황을 일으키기 시작했습니다.", "진정제를 투여하여 승무원을 진정시키십시오."]
+            "QUARANTINE_GAME": ["장시간의 비행 속에 승무원이 공황을 일으키기 시작했습니다.", "진정제를 투여하여 승무원을 진정시키십시오."],
+            "METEOR_GAME": ["우주선에 운석지대가 감지되었습니다.", "피하십시오!"]
         }
         self.warning_lines = game_toasts.get(self.assigned_game, self.warning_lines)
 
@@ -263,7 +270,8 @@ class Day2Manager:
             "RIOT_GAME": "stage_3_riot.py",
             "NAV_GAME": "stage_4_nav.py",
             "ELECTRIC_GAME": "stage_6_electric.py",
-            "QUARANTINE_GAME": "stage_6_patient.py"
+            "QUARANTINE_GAME": "stage_6_patient.py",
+            "METEOR_GAME": "stage_10_rocket.py"
         }
         target_file = game_files.get(self.assigned_game)
         if target_file:
@@ -329,6 +337,10 @@ class Day2Manager:
                     except:
                         pass
                 self.state = "WARNING_TOAST"
+                try:
+                    pygame.mixer.music.stop()
+                except:
+                    pass
                 # 비상 경고음 재생
                 if self.alarm_sound:
                     try:

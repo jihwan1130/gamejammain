@@ -65,6 +65,7 @@ class PathogenQuarantineGame:
         self.elapsed_time = 0.0
         
         self.state = "PLAYING"  # PLAYING, SUCCESS, FAIL
+        self.penalty_selected = None
         
         # 입력 상태 및 판정 피드백 캐싱
         self.top_pressed = False
@@ -73,6 +74,18 @@ class PathogenQuarantineGame:
         self.feedback_timer = 0
         self.cached_feedback_text = ""
         self.cached_feedback_surf = None
+        
+    def on_fail(self):
+        self.penalty_selected = 1
+
+    def apply_penalty(self):
+        resources_game = get_main_val('resources_game')
+        if not resources_game:
+            return
+        if hasattr(resources_game, 'resources'):
+            if "산소" in resources_game.resources:
+                resources_game.resources["산소"] = max(0, resources_game.resources["산소"] - 50)
+                print(f"[PENALTY] Pathogen control failed. Oxygen decreased by 50. Current: {resources_game.resources['산소']}")
         
     def update(self):
         if self.state == "PLAYING":
@@ -104,6 +117,7 @@ class PathogenQuarantineGame:
                 self.state = "SUCCESS"
             elif self.lives <= 0:
                 self.state = "FAIL"
+                self.on_fail()
                 
     def set_feedback(self, text):
         self.hit_feedback = text
@@ -147,6 +161,10 @@ class PathogenQuarantineGame:
         go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
         keyboard_sfx = get_main_val('keyboard_sfx')
         
+        is_campaign = False
+        if settings and settings.is_campaign:
+            is_campaign = True
+            
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_f:
                 self.top_pressed = False
@@ -161,10 +179,17 @@ class PathogenQuarantineGame:
                     if go_to_minigames:
                         go_to_minigames()
                 elif event.key == pygame.K_RETURN:
-                    self.reset()
-                    if keyboard_sfx:
-                        keyboard_sfx.set_volume(vol)
-                        keyboard_sfx.play()
+                    if self.state == "FAIL" and self.penalty_selected is None:
+                        return
+                    if self.state == "FAIL" and self.penalty_selected is not None:
+                        self.apply_penalty()
+                    if is_campaign:
+                        pass
+                    else:
+                        self.reset()
+                        if keyboard_sfx:
+                            keyboard_sfx.set_volume(vol)
+                            keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
@@ -255,7 +280,7 @@ class PathogenQuarantineGame:
                 sub = self.font_sub.render("30초 동안 메인프레임을 안전하게 방어해 냈습니다.", True, WHITE)
             else:
                 msg = self.font_main.render("🚨 방어선 돌파 - 시스템 멜트다운 (FAIL) 🚨", True, self.RED)
-                sub = self.font_sub.render("허용된 모든 보안 기회를 소진했습니다. 방화벽이 해제됩니다.", True, WHITE)
+                sub = self.font_sub.render("환자가 과호흡이 와 산소가 소모됐습니다. (산소 -50)", True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 300))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 350))
             virtual_surf.blit(sub_control, (500 - sub_control.get_width()//2, 400))

@@ -19,6 +19,16 @@ def load_gif_frames(filepath):
         print(f"GIF 프레임 로드 실패: {e}")
     return frames
 
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
+
 class MeteorGame:
     def __init__(self):
         self.bg_img = None
@@ -35,22 +45,25 @@ class MeteorGame:
             print(f"배경 이미지를 로드할 수 없습니다: {e}")
             
         self.meteor_frames = load_gif_frames(os.path.join("assets", "meteor2.gif"))
-            
+        
         self.rocket_frames = load_gif_frames(os.path.join("assets", "rocket2.gif"))
         if not self.rocket_frames:
             print("로켓 GIF 프레임을 로드할 수 없습니다.")
             
         try:
             self.crash_sfx = pygame.mixer.Sound(os.path.join("assets", "crash2.MP3"))
-            from main import settings
-            self.crash_sfx.set_volume(settings.volume * 0.7)
+            settings = get_main_val('settings')
+            vol = settings.volume if settings else 0.5
+            self.crash_sfx.set_volume(vol * 0.7)
         except Exception as e:
             print(f"충돌 효과음을 로드할 수 없습니다: {e}")
 
     def reset(self):
-        from main import settings
-        self.player_x = settings.width // 2
-        self.player_y = settings.height - 120
+        settings = get_main_val('settings')
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
+        self.player_x = width // 2
+        self.player_y = height - 120
         self.player_size = 48  # 2배 증가 (24 -> 48)
         self.hp = 3
         self.max_hp = 3
@@ -63,24 +76,45 @@ class MeteorGame:
         self.elapsed_time = 0
         self.game_duration = 30000  # 30초 플레이 타임
         self.shake_intensity = 0
+        self.penalty_selected = None
         
         # Initialize vertical speed lines for warp speed sensation
         import random
         self.speed_lines = []
         for _ in range(40):
             self.speed_lines.append({
-                "x": random.randint(10, settings.width - 10),
-                "y": random.randint(-settings.height, settings.height),
+                "x": random.randint(10, width - 10),
+                "y": random.randint(-height, height),
                 "length": random.randint(40, 110),
                 "speed": random.uniform(15.0, 32.0),
                 "alpha": random.randint(50, 150)
             })
         
+    def on_fail(self):
+        self.penalty_selected = 1
+        self.apply_penalty()
+
+    def apply_penalty(self):
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        if not resources_game:
+            return
+        if hasattr(resources_game, 'resources'):
+            for key in ["전기", "산소", "정신력"]:
+                if key in resources_game.resources:
+                    resources_game.resources[key] = max(0, resources_game.resources[key] - 30)
+            print(f"[PENALTY] Meteor crash. Oxygen, Electric, Mental decreased by 30.")
+        
     def handle_event(self, event):
         return False
         
     def update(self):
-        from main import settings, progress, click_sfx
+        settings = get_main_val('settings')
+        progress = get_main_val('progress')
+        vol = settings.volume if settings else 0.5
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
+        
         current_ticks = pygame.time.get_ticks()
         
         # Screen shake dampening
@@ -98,7 +132,8 @@ class MeteorGame:
             self.elapsed_time = current_ticks - self.play_start_ticks
             if self.elapsed_time >= self.game_duration:
                 self.state = "WON"
-                progress.unlock_achievement("meteor_survivor")
+                if progress:
+                    progress.unlock_achievement("meteor_survivor")
                 
             # Invincibility frame countdown
             if self.invincible_timer > 0:
@@ -115,7 +150,7 @@ class MeteorGame:
                 for _ in range(num_spawn):
                     # 거대 운석의 빈도를 낮추고 소형 운석의 비율을 늘림 (지수 스케일링: 최솟값 1.5배 증가 24, 최댓값 1.2배 감소 80)
                     size = int(24 + (random.random() ** 1.8) * 56)
-                    m_x = random.randint(30, settings.width - 30)
+                    m_x = random.randint(30, width - 30)
                     m_y = -size
                     
                     # [크기-속도 연동 물리 법칙] 큰 운석은 느리고 묵직하게 길목을 막고, 작은 운석은 빠르게 떨어짐!
@@ -163,21 +198,17 @@ class MeteorGame:
                                 "color": (255, 120, 30)
                             })
                         if self.crash_sfx:
-                            self.crash_sfx.set_volume(settings.volume * 0.7)
+                            self.crash_sfx.set_volume(vol * 0.7)
                             self.crash_sfx.play()
                         if self.hp <= 0:
                             self.state = "LOST"
-                            try:
-                                from main import play_music_track, GAMEOVER_MUSIC_PATH
-                                play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
-                            except Exception as e:
-                                print(f"게임오버 음악 재생 실패: {e}")
+                            self.on_fail()
                     # Remove the hit meteor
                     self.meteors.remove(m)
                     continue
                     
                 # Remove if off-screen
-                if m["y"] > settings.height + 50 or m["x"] < -50 or m["x"] > settings.width + 50:
+                if m["y"] > height + 50 or m["x"] < -50 or m["x"] > width + 50:
                     self.meteors.remove(m)
                     
         # Update particles
@@ -193,15 +224,17 @@ class MeteorGame:
             import random
             for line in self.speed_lines:
                 line["y"] += line["speed"]
-                if line["y"] > settings.height:
-                    line["x"] = random.randint(10, settings.width - 10)
+                if line["y"] > height:
+                    line["x"] = random.randint(10, width - 10)
                     line["y"] = random.randint(-150, -50)
                     line["length"] = random.randint(40, 110)
                     line["speed"] = random.uniform(15.0, 32.0)
                     line["alpha"] = random.randint(50, 150)
 
     def handle_input(self):
-        from main import settings
+        settings = get_main_val('settings')
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
         if self.state != "PLAYING":
             return
             
@@ -227,11 +260,14 @@ class MeteorGame:
         self.player_y += dy * speed
         
         # Constrain to screen boundaries
-        self.player_x = max(20 + self.player_size, min(settings.width - 20 - self.player_size, self.player_x))
-        self.player_y = max(50 + self.player_size, min(settings.height - 50 - self.player_size, self.player_y))
+        self.player_x = max(20 + self.player_size, min(width - 20 - self.player_size, self.player_x))
+        self.player_y = max(50 + self.player_size, min(height - 50 - self.player_size, self.player_y))
 
     def draw(self, surface):
-        from main import settings, CRT_GREEN, CRT_BRIGHT, get_scaled_font
+        settings = get_main_val('settings')
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
+        from main import CRT_GREEN, CRT_BRIGHT, get_scaled_font
         
         # Shake offset
         ox, oy = 0, 0
@@ -241,26 +277,26 @@ class MeteorGame:
             
         # Draw background image
         if self.bg_img:
-            if not hasattr(self, '_scaled_bg') or self._scaled_bg.get_size() != (settings.width, settings.height):
-                self._scaled_bg = pygame.transform.scale(self.bg_img, (settings.width, settings.height))
+            if not hasattr(self, '_scaled_bg') or self._scaled_bg.get_size() != (width, height):
+                self._scaled_bg = pygame.transform.scale(self.bg_img, (width, height))
             surface.blit(self._scaled_bg, (ox, oy))
             
             # Apply dark warm overlay to dim contrast and lower saturation for better readability
-            dim_overlay = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
+            dim_overlay = pygame.Surface((width, height), pygame.SRCALPHA)
             dim_overlay.fill((15, 10, 8, 170))  # R, G, B, Alpha (170 = ~66% opacity)
             surface.blit(dim_overlay, (0, 0))
         else:
             # Fallback dark backdrop
-            overlay = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
             overlay.fill((12, 6, 3, 230))
             surface.blit(overlay, (0, 0))
             
             # Draw retro grid
             grid_w = 40
-            for x in range(0, settings.width, grid_w):
-                pygame.draw.line(surface, (40, 20, 10), (x + ox, 0), (x + ox, settings.height), 1)
-            for y in range(0, settings.height, grid_w):
-                pygame.draw.line(surface, (40, 20, 10), (ox, y + oy), (settings.width + ox, y + oy), 1)
+            for x in range(0, width, grid_w):
+                pygame.draw.line(surface, (40, 20, 10), (x + ox, 0), (x + ox, height), 1)
+            for y in range(0, height, grid_w):
+                pygame.draw.line(surface, (40, 20, 10), (ox, y + oy), (width + ox, y + oy), 1)
                 
         # Draw vertical speed lines for hyper-speed immersion
         for line in self.speed_lines:
@@ -326,7 +362,7 @@ class MeteorGame:
         
         # [요구사항 1] Time remaining progress bar
         time_ratio = max(0.0, (self.game_duration - self.elapsed_time) / self.game_duration)
-        bar_max_w = settings.width // 2 - 60 # 프로그레스 바 최대 너비
+        bar_max_w = width // 2 - 60 # 프로그레스 바 최대 너비
         bar_h = 16
         bar_x = 30
         bar_y = 22
@@ -343,18 +379,18 @@ class MeteorGame:
         # Shield health bar
         shield_text = "SHIELDS: "
         shield_lbl = font_hud.render(shield_text, True, CRT_GREEN)
-        surface.blit(shield_lbl, (settings.width - 240, 20))
+        surface.blit(shield_lbl, (width - 240, 20))
         
         # Draw shield energy blocks
         for hp_i in range(self.max_hp):
-            bx = settings.width - 140 + hp_i * 22
+            bx = width - 140 + hp_i * 22
             by = 22
             color = (100, 255, 100) if hp_i < self.hp else (40, 20, 10)
             pygame.draw.rect(surface, color, (bx, by, 16, 12))
             pygame.draw.rect(surface, CRT_GREEN, (bx, by, 16, 12), 1)
             
         # Draw game boundaries
-        pygame.draw.rect(surface, CRT_GREEN, (15 + ox, 45 + oy, settings.width - 30, settings.height - 85), 2)
+        pygame.draw.rect(surface, CRT_GREEN, (15 + ox, 45 + oy, width - 30, height - 85), 2)
             
         # Countdown overlay rendering
         if self.state == "COUNTDOWN":
@@ -368,10 +404,10 @@ class MeteorGame:
             font_num = get_scaled_font(int(48 * pulse), is_korean=True)
             
             num_surf = font_num.render(num_str, True, CRT_BRIGHT)
-            num_rect = num_surf.get_rect(center=(settings.width // 2, settings.height // 2))
+            num_rect = num_surf.get_rect(center=(width // 2, height // 2))
             
             box_w, box_h = 300, 120
-            box_rect = pygame.Rect(settings.width//2 - box_w//2, settings.height//2 - box_h//2, box_w, box_h)
+            box_rect = pygame.Rect(width//2 - box_w//2, height//2 - box_h//2, box_w, box_h)
             pygame.draw.rect(surface, (15, 8, 3, 220), box_rect)
             pygame.draw.rect(surface, CRT_GREEN, box_rect, 2)
             
@@ -382,31 +418,38 @@ class MeteorGame:
             font_end = get_scaled_font(28, is_korean=True)
             font_sub = get_scaled_font(15, is_korean=True)
             
-            msg = "MISSION SUCCESS" if self.state == "WON" else "SHIELD COLLAPSE - GAME OVER"
-            color = (100, 255, 100) if self.state == "WON" else (255, 60, 40)
-            
-            msg_surf = font_end.render(msg, True, color)
-            msg_rect = msg_surf.get_rect(center=(settings.width // 2, settings.height // 2 - 30))
-            
             is_campaign = False
             if settings and settings.is_campaign:
                 is_campaign = True
                 
-            if is_campaign:
-                sub_text = "[ ENTER: 계속 진행 ]"
+            if self.state == "WON":
+                msg = "MISSION SUCCESS"
+                color = (100, 255, 100)
+                sub_text = "[ ENTER: 계속 진행 ]" if is_campaign else "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                desc_text = "안전 구역 돌파 완료."
             else:
-                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                msg = "🚨 운석 충돌 - 미션 실패 🚨"
+                color = (255, 60, 40)
+                sub_text = "[ ENTER: 결과 확인 및 계속 진행 ]" if is_campaign else "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                desc_text = "운석에 충돌하여, 대부분의 에너지를 잃었습니다. (산소/전기/정신력 -30)"
                 
-            sub_surf = font_sub.render(sub_text, True, (255, 255, 255))
-            sub_rect = sub_surf.get_rect(center=(settings.width // 2, settings.height // 2 + 30))
+            msg_surf = font_end.render(msg, True, color)
+            msg_rect = msg_surf.get_rect(center=(width // 2, height // 2 - 35))
             
-            box_w = int(settings.width * 0.6)
+            desc_surf = font_sub.render(desc_text, True, (240, 180, 180) if self.state == "LOST" else (180, 240, 180))
+            desc_rect = desc_surf.get_rect(center=(width // 2, height // 2 + 5))
+            
+            sub_surf = font_sub.render(sub_text, True, (255, 255, 255))
+            sub_rect = sub_surf.get_rect(center=(width // 2, height // 2 + 45))
+            
+            box_w = int(width * 0.7)
             box_h = 160
-            box_rect = pygame.Rect(settings.width//2 - box_w//2, settings.height//2 - box_h//2, box_w, box_h)
+            box_rect = pygame.Rect(width//2 - box_w//2, height//2 - box_h//2, box_w, box_h)
             
             pygame.draw.rect(surface, (15, 8, 3, 240), box_rect)
             pygame.draw.rect(surface, color, box_rect, 2)
             pygame.draw.rect(surface, color, (box_rect.x + 4, box_rect.y + 4, box_rect.width - 8, box_rect.height - 8), 1)
             
             surface.blit(msg_surf, msg_rect)
+            surface.blit(desc_surf, desc_rect)
             surface.blit(sub_surf, sub_rect)

@@ -78,7 +78,34 @@ class RogueRobotGame:
         self.limit_time = 8.0  # 시간 2초 단축 (10.0 -> 8.0)
         self.elapsed_time = 0
         self.state = "PLAYING"
-            
+        self.penalty_selected = None
+        self.has_police = False
+        self.fail_time = 0
+        
+    def on_fail(self):
+        self.penalty_selected = None
+        self.fail_time = pygame.time.get_ticks()
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        self.has_police = False
+        if resources_game and hasattr(resources_game, 'my_crew'):
+            if "경찰" in resources_game.my_crew:
+                self.has_police = True
+
+    def apply_penalty(self):
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        if not resources_game:
+            return
+        if self.penalty_selected == 1:
+            if hasattr(resources_game, 'my_crew') and "경찰" in resources_game.my_crew:
+                resources_game.my_crew.remove("경찰")
+                print("[PENALTY] Police (경찰) died.")
+        elif self.penalty_selected == 2:
+            if hasattr(resources_game, 'resources') and "전기" in resources_game.resources:
+                resources_game.resources["전기"] = max(0, resources_game.resources["전기"] - 50)
+                print(f"[PENALTY] Electric decreased by 50. Current: {resources_game.resources['전기']}")
+
     def update(self):
         if self.state == "PLAYING":
             self.elapsed_time = (pygame.time.get_ticks() - self.start_ticks) / 1000.0
@@ -94,6 +121,18 @@ class RogueRobotGame:
                 self.state = "SUCCESS"
             elif self.elapsed_time >= self.limit_time:
                 self.state = "FAIL"
+                self.on_fail()
+        elif self.state == "FAIL":
+            if not self.has_police:
+                now = pygame.time.get_ticks()
+                if now - self.fail_time >= 2500:
+                    go_to_main_menu = get_main_val('go_to_main_menu')
+                    if go_to_main_menu:
+                        go_to_main_menu()
+                    else:
+                        pygame.quit()
+                        import sys
+                        sys.exit()
                 
     def handle_input(self):
         pass
@@ -194,21 +233,71 @@ class RogueRobotGame:
                 is_campaign = True
                 
             if is_campaign:
-                sub_control_text = "[ ENTER: 계속 진행 ]"
+                sub_control_text = "[ ENTER: 결과 확인 및 계속 진행 ]"
             else:
                 sub_control_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
                 
-            sub_control = font_sub.render(sub_control_text, True, WHITE)
-            
             if self.state == "SUCCESS":
                 msg = font_main.render("■ 위협 로봇 전원 사살 (SUCCESS) ■", True, (70, 220, 70))
                 sub = font_sub.render("경찰 크루의 신속한 저격으로 거주 구역이 개방되었습니다.", True, WHITE)
+                sub_control = font_sub.render(sub_control_text, True, WHITE)
+                virtual_surf.blit(msg, (500 - msg.get_width()//2, 300))
+                virtual_surf.blit(sub, (500 - sub.get_width()//2, 350))
+                virtual_surf.blit(sub_control, (500 - sub_control.get_width()//2, 400))
             else:
                 msg = font_main.render("🚨 거주 구역 전면 폐쇄 (FAIL) 🚨", True, (220, 60, 40))
-                sub = font_sub.render("시간 초과로 경찰이 부상을 입었으며 선내 정신력이 파손되었습니다.", True, WHITE)
-            virtual_surf.blit(msg, (500 - msg.get_width()//2, 300))
-            virtual_surf.blit(sub, (500 - sub.get_width()//2, 350))
-            virtual_surf.blit(sub_control, (500 - sub_control.get_width()//2, 400))
+                virtual_surf.blit(msg, (500 - msg.get_width()//2, 260))
+                
+                if not self.has_police:
+                    lbl_warning = font_main.render("경찰관이 없어 로봇에게 전기를 뺏겼습니다.", True, (255, 100, 100))
+                    lbl_subwarning = font_sub.render("잠시 후 타이틀 화면으로 이동합니다... (게임 오버)", True, (200, 200, 200))
+                    virtual_surf.blit(lbl_warning, (500 - lbl_warning.get_width()//2, 330))
+                    virtual_surf.blit(lbl_subwarning, (500 - lbl_subwarning.get_width()//2, 380))
+                else:
+                    if self.penalty_selected is None:
+                        desc_text = "다음 패널티 중 하나를 반드시 선택해야 진행할 수 있습니다. (1번 또는 2번 키/클릭)"
+                    else:
+                        selected_name = "경찰관 사망" if self.penalty_selected == 1 else "전기 -50"
+                        desc_text = f"선택 완료: [{selected_name}] - {sub_control_text}"
+                        
+                    lbl_desc = font_sub.render(desc_text, True, (250, 200, 100))
+                    virtual_surf.blit(lbl_desc, (500 - lbl_desc.get_width()//2, 320))
+                    
+                    # 버튼 그리기
+                    btn1_rect = pygame.Rect(200, 400, 260, 90)
+                    btn2_rect = pygame.Rect(540, 400, 260, 90)
+                    
+                    scr_w, scr_h = surface.get_size()
+                    mx, my = pygame.mouse.get_pos()
+                    vmx = int(mx * 1000.0 / scr_w)
+                    vmy = int(my * 700.0 / scr_h)
+                    
+                    hover_btn1 = btn1_rect.collidepoint(vmx, vmy)
+                    hover_btn2 = btn2_rect.collidepoint(vmx, vmy)
+                    
+                    # 버튼 1: 경찰관 사망
+                    b1_color = (80, 20, 20) if self.penalty_selected == 1 else ((40, 10, 10) if hover_btn1 else (20, 5, 5))
+                    pygame.draw.rect(virtual_surf, b1_color, btn1_rect)
+                    pygame.draw.rect(virtual_surf, (220, 60, 40), btn1_rect, 2 if self.penalty_selected == 1 else 1)
+                    
+                    b1_title = font_main.render("1. 경찰관의 희생", True, (255, 200, 200))
+                    b1_desc = font_sub.render("사망: [경찰]", True, (240, 100, 100))
+                    virtual_surf.blit(b1_title, (330 - b1_title.get_width()//2, 415))
+                    virtual_surf.blit(b1_desc, (330 - b1_desc.get_width()//2, 450))
+                    
+                    # 버튼 2: 전기 감소
+                    b2_color = (40, 40, 80) if self.penalty_selected == 2 else ((20, 20, 40) if hover_btn2 else (10, 10, 20))
+                    pygame.draw.rect(virtual_surf, b2_color, btn2_rect)
+                    pygame.draw.rect(virtual_surf, (150, 80, 220), btn2_rect, 2 if self.penalty_selected == 2 else 1)
+                    
+                    b2_title = font_main.render("2. 전기 강탈", True, (200, 200, 255))
+                    b2_desc = font_sub.render("전기 -50", True, (180, 100, 255))
+                    virtual_surf.blit(b2_title, (670 - b2_title.get_width()//2, 415))
+                    virtual_surf.blit(b2_desc, (670 - b2_desc.get_width()//2, 450))
+                    
+                    if self.penalty_selected is not None:
+                        lbl_enter = font_sub.render(sub_control_text, True, WHITE)
+                        virtual_surf.blit(lbl_enter, (500 - lbl_enter.get_width()//2, 520))
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
             
@@ -221,7 +310,50 @@ class RogueRobotGame:
         go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
         keyboard_sfx = get_main_val('keyboard_sfx')
         
-        if self.state != "PLAYING":
+        if self.state == "FAIL":
+            if not self.has_police:
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx, my = event.pos
+                vmx = int(mx * 1000.0 / width)
+                vmy = int(my * 700.0 / height)
+                btn1_rect = pygame.Rect(200, 400, 260, 90)
+                btn2_rect = pygame.Rect(540, 400, 260, 90)
+                if btn1_rect.collidepoint(vmx, vmy):
+                    self.penalty_selected = 1
+                    if play_sfx:
+                        play_sfx("sfx_click")
+                elif btn2_rect.collidepoint(vmx, vmy):
+                    self.penalty_selected = 2
+                    if play_sfx:
+                        play_sfx("sfx_click")
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
+                elif event.key == pygame.K_1:
+                    self.penalty_selected = 1
+                    if play_sfx:
+                        play_sfx("sfx_click")
+                elif event.key == pygame.K_2:
+                    self.penalty_selected = 2
+                    if play_sfx:
+                        play_sfx("sfx_click")
+                elif event.key == pygame.K_RETURN:
+                    if self.penalty_selected is None:
+                        return
+                    self.apply_penalty()
+                    settings_inst = get_main_val('settings')
+                    if settings_inst and not settings_inst.is_campaign:
+                        self.reset()
+                        if keyboard_sfx:
+                            keyboard_sfx.set_volume(vol)
+                            keyboard_sfx.play()
+            return
+            
+        elif self.state == "SUCCESS":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if play_sfx:
@@ -229,10 +361,12 @@ class RogueRobotGame:
                     if go_to_minigames:
                         go_to_minigames()
                 elif event.key == pygame.K_RETURN:
-                    self.reset()
-                    if keyboard_sfx:
-                        keyboard_sfx.set_volume(vol)
-                        keyboard_sfx.play()
+                    settings_inst = get_main_val('settings')
+                    if settings_inst and not settings_inst.is_campaign:
+                        self.reset()
+                        if keyboard_sfx:
+                            keyboard_sfx.set_volume(vol)
+                            keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:

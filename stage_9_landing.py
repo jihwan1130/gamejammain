@@ -3,6 +3,15 @@ import sys
 import os
 import math
 
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
 
 class ReverseThrustDecelerationGame:
     def __init__(self):
@@ -23,7 +32,6 @@ class ReverseThrustDecelerationGame:
         self.font_main = self.get_sys_font(korean_fonts, 20, bold=True)
         self.font_sub = self.get_sys_font(korean_fonts, 15)
 
-        
     def reset(self):
         # 게이지 및 타이머 시스템 (0.0 ~ 100.0 범위)
         self.gauge = 0.0
@@ -34,8 +42,6 @@ class ReverseThrustDecelerationGame:
         self.warmup = 30.0          # 초기 예열값을 30%로 주어 밸런스 유지
         self.warmup_decay = 18.0    # 초당 예열 감소율
         self.warmup_gain = 7.42     # 스페이스 타건당 예열 증가량 (1.1배 상향)
-
-
         
         # 과열(Overheat) 시스템
         self.overheat_threshold = 92.0 # 과열 경고가 시작되는 지점
@@ -48,7 +54,43 @@ class ReverseThrustDecelerationGame:
         self.elapsed_time = 0
         self.limit_time = 8.0          # 시간 제한 8초로 단축
         self.state = "PLAYING"         # PLAYING, SUCCESS, FAIL
+        self.penalty_selected = None
+        self.dead_crew_candidate = None
         
+    def on_fail(self):
+        self.penalty_selected = 1
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        self.dead_crew_candidate = None
+        if resources_game and hasattr(resources_game, 'my_crew') and len(resources_game.my_crew) > 0:
+            import random as py_random
+            self.dead_crew_candidate = py_random.choice(resources_game.my_crew)
+
+    def apply_penalty(self):
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        if not resources_game:
+            return
+        if hasattr(resources_game, 'my_crew') and len(resources_game.my_crew) > 0:
+            if hasattr(self, 'dead_crew_candidate') and self.dead_crew_candidate in resources_game.my_crew:
+                resources_game.my_crew.remove(self.dead_crew_candidate)
+                print(f"[PENALTY] Landing failed. {self.dead_crew_candidate} died.")
+            else:
+                import random as py_random
+                removed = py_random.choice(resources_game.my_crew)
+                resources_game.my_crew.remove(removed)
+                print(f"[PENALTY] Landing failed. {removed} died.")
+
+    def apply_success(self):
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        if not resources_game:
+            return
+        if hasattr(resources_game, 'resources'):
+            for key in list(resources_game.resources.keys()):
+                resources_game.resources[key] = 1
+            print("[SUCCESS] Deceleration complete! All resources reduced to 1.")
+
     def update(self):
         if self.state != "PLAYING":
             return
@@ -70,6 +112,7 @@ class ReverseThrustDecelerationGame:
             # 과열 패널티 중에도 시간이 다 되면 바로 판정 돌입
             if self.elapsed_time >= self.limit_time:
                 self.state = "FAIL"
+                self.on_fail()
             return # 과열 중에는 아래 일반 감쇄 로직 건너뜀
             
         # 2. 실시간 게이지 자연 감소 (저항력 적용)
@@ -81,30 +124,49 @@ class ReverseThrustDecelerationGame:
             # 12.0초가 되는 시점에 압력이 정확히 80% ~ 100% 영역 안에 안착해야 성공
             if 80.0 <= self.gauge <= 100.0 and not self.is_overheated:
                 self.state = "SUCCESS"
+                self.apply_success()
             else:
                 self.state = "FAIL"
+                self.on_fail()
                     
     def handle_input(self):
         pass
         
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        play_sfx = get_main_val('play_sfx')
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        keyboard_sfx = get_main_val('keyboard_sfx')
         
+        is_campaign = False
+        if settings and settings.is_campaign:
+            is_campaign = True
+            
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
+                    if play_sfx:
+                        play_sfx("sfx_end")
                     go_to_minigames()
                 elif event.key == pygame.K_RETURN:
-                    self.reset()
-                    if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
-                        keyboard_sfx.play()
+                    if self.state == "FAIL" and self.penalty_selected is None:
+                        return
+                    if self.state == "FAIL" and self.penalty_selected is not None:
+                        self.apply_penalty()
+                    if is_campaign:
+                        pass
+                    else:
+                        self.reset()
+                        if keyboard_sfx:
+                            keyboard_sfx.set_volume(vol)
+                            keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
+                if play_sfx:
+                    play_sfx("sfx_end")
                 go_to_minigames()
                 
             elif event.key == pygame.K_SPACE:
@@ -120,13 +182,15 @@ class ReverseThrustDecelerationGame:
                 self.gauge = min(100.0, self.gauge + actual_boost)
                 self.warmup = min(100.0, self.warmup + self.warmup_gain)
                 
-                play_sfx("sfx_click")
+                if play_sfx:
+                    play_sfx("sfx_click")
                 
                 # 100.0%에 완전히 도달하면 제어 장치 과열 폭발 (Lock & Reset)
                 if self.gauge >= 100.0:
                     self.is_overheated = True
                     self.overheat_timer = self.overheat_duration
-                    play_sfx("sfx_fail")
+                    if play_sfx:
+                        play_sfx("sfx_fail")
 
     def draw(self, surface):
         from main import WHITE
@@ -279,7 +343,7 @@ class ReverseThrustDecelerationGame:
             overlay.fill((10, 5, 5, 200))
             virtual_surf.blit(overlay, (0, 0))
             
-            panel_w, panel_h = 600, 180
+            panel_w, panel_h = 600, 220
             panel_x, panel_y = 500 - panel_w // 2, 350 - panel_h // 2
             panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
             
@@ -287,36 +351,45 @@ class ReverseThrustDecelerationGame:
             panel_bg.fill((20, 10, 10, 230))
             virtual_surf.blit(panel_bg, (panel_x, panel_y))
             
-            if self.state == "SUCCESS":
-                border_color = (100, 255, 100)
-                msg = self.font_main.render("■ 역추진 브레이킹 성공! 안전 궤도 안착 완료 (SUCCESS) ■", True, border_color)
-            else:
-                border_color = COLOR_THEME
-                msg = self.font_main.render("🚨 제어 실패: 하강 속도 제어 불능 (FAIL) 🚨", True, border_color)
-
-                
-            pygame.draw.rect(virtual_surf, border_color, panel_rect, 2, border_radius=8)
-            
-            # 팝업 패널 모서리 장식
-            pygame.draw.line(virtual_surf, white, (panel_rect.left, panel_rect.top), (panel_rect.left + 15, panel_rect.top), 3)
-            pygame.draw.line(virtual_surf, white, (panel_rect.left, panel_rect.top), (panel_rect.left, panel_rect.top + 15), 3)
-            pygame.draw.line(virtual_surf, white, (panel_rect.right - 1, panel_rect.top), (panel_rect.right - 1 - 15, panel_rect.top), 3)
-            pygame.draw.line(virtual_surf, white, (panel_rect.right - 1, panel_rect.top), (panel_rect.right - 1, panel_rect.top + 15), 3)
-            
             is_campaign = False
             settings = get_main_val('settings')
             if settings and settings.is_campaign:
                 is_campaign = True
                 
             if is_campaign:
-                sub_text = "[ ENTER: 계속 진행 ]"
+                sub_text = "[ ENTER: 결과 확인 및 계속 진행 ]"
             else:
                 sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
                 
+            if self.state == "SUCCESS":
+                border_color = (100, 255, 100)
+                msg = self.font_main.render("■ 역추진 브레이킹 성공! 안전 궤도 안착 완료 (SUCCESS) ■", True, border_color)
+                sub_desc = self.font_sub.render("모든 자원이 1%까지 하락했습니다.", True, (200, 255, 200))
+            else:
+                border_color = COLOR_THEME
+                msg = self.font_main.render("🚨 제어 실패: 하강 속도 제어 불능 (FAIL) 🚨", True, border_color)
+                
+                # 튕겨 나간 대원 안내 문구
+                if hasattr(self, 'dead_crew_candidate') and self.dead_crew_candidate:
+                    crew_text = f"우주선 충격으로 {self.dead_crew_candidate} 대원이 튕겨 나갔습니다."
+                else:
+                    crew_text = "우주선 충격으로 사람이 한 명 튕겨 나갔습니다."
+                sub_desc = self.font_sub.render(crew_text, True, (255, 120, 120))
+                
+            pygame.draw.rect(virtual_surf, border_color, panel_rect, 2, border_radius=8)
+            
+            # 팝업 패널 모서리 장식
+            white = (255, 255, 255)
+            pygame.draw.line(virtual_surf, white, (panel_rect.left, panel_rect.top), (panel_rect.left + 15, panel_rect.top), 3)
+            pygame.draw.line(virtual_surf, white, (panel_rect.left, panel_rect.top), (panel_rect.left, panel_rect.top + 15), 3)
+            pygame.draw.line(virtual_surf, white, (panel_rect.right - 1, panel_rect.top), (panel_rect.right - 1 - 15, panel_rect.top), 3)
+            pygame.draw.line(virtual_surf, white, (panel_rect.right - 1, panel_rect.top), (panel_rect.right - 1, panel_rect.top + 15), 3)
+            
             sub = self.font_sub.render(sub_text, True, white)
             
             virtual_surf.blit(msg, (500 - msg.get_width()//2, panel_y + 45))
-            virtual_surf.blit(sub, (500 - sub.get_width()//2, panel_y + 110))
+            virtual_surf.blit(sub_desc, (500 - sub_desc.get_width()//2, panel_y + 95))
+            virtual_surf.blit(sub, (500 - sub.get_width()//2, panel_y + 145))
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
 

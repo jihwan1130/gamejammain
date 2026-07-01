@@ -80,7 +80,7 @@ class GameSettings:
         self.speed_cheat_active = False
         
         # 랜덤 Day (2, 3, 4, 6) 게임 배정 (중복 불가)
-        candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME"]
+        candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "METEOR_GAME"]
         chosen = random.sample(candidates, 4)
         self.random_day_games = {
             "DAY_2": chosen[0],
@@ -1547,6 +1547,7 @@ def main():
     
     stage_mappings = {
         "FIRE_GAME": fire_game,
+        "METEOR_GAME": meteor_game,
         "ROBOT_GAME": rogue_robot_game,
         "GRAVITY_GAME": gravity_hull_game,
         "OVERHEAT_GAME": core_thermal_game,
@@ -1612,10 +1613,16 @@ def main():
                 if not settings.state.startswith("DAY_"):
                     play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
                 else:
-                    try:
-                        pygame.mixer.music.stop()
-                    except:
-                        pass
+                    if settings.state in [f"DAY_{i}" for i in range(1, 11)]:
+                        try:
+                            play_music_track(os.path.join("assets", "engine.mp3"), fade_ms=0)
+                        except:
+                            pass
+                    else:
+                        try:
+                            pygame.mixer.music.stop()
+                        except:
+                            pass
                 
         if settings.campaign_next_requested:
             settings.campaign_next_requested = False
@@ -1631,10 +1638,16 @@ def main():
                     if not state_key.startswith("DAY_"):
                         play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
                     else:
-                        try:
-                            pygame.mixer.music.stop()
-                        except:
-                            pass
+                        if state_key in [f"DAY_{i}" for i in range(1, 11)]:
+                            try:
+                                play_music_track(os.path.join("assets", "engine.mp3"), fade_ms=0)
+                            except:
+                                pass
+                        else:
+                            try:
+                                pygame.mixer.music.stop()
+                            except:
+                                pass
                 else:
                     go_to_main_menu()
 
@@ -1965,21 +1978,27 @@ def main():
                     continue
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        if meteor_game.state == "PLAYING":
+                        if meteor_game.state == "PLAYING" and hasattr(meteor_game, 'pause_game'):
                             meteor_game.pause_game()
                             play_sfx("sfx_end")
                         elif meteor_game.state in ["WON", "LOST"]:
                             play_sfx("sfx_end")
                             go_to_minigames()
                     elif event.key == pygame.K_RETURN and meteor_game.state in ["WON", "LOST"]:
-                        meteor_game.reset()
-                        if keyboard_sfx:
-                            keyboard_sfx.set_volume(settings.volume)
-                            keyboard_sfx.play()
-                        try:
-                            play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
-                        except Exception as e:
-                            print(f"운석게임 음악 재생 실패: {e}")
+                        if settings.is_campaign:
+                            if meteor_game.state == "LOST":
+                                meteor_game.apply_penalty()
+                            play_sfx("sfx_click")
+                            next_campaign_day()
+                        else:
+                            meteor_game.reset()
+                            if keyboard_sfx:
+                                keyboard_sfx.set_volume(settings.volume)
+                                keyboard_sfx.play()
+                            try:
+                                play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
+                            except Exception as e:
+                                print(f"운석게임 음악 재생 실패: {e}")
             else:
                 if settings.state in stage_mappings:
                     # 디버깅: 엔터 키 누를 때 상태 로깅
@@ -1990,13 +2009,119 @@ def main():
                         print(f"[DEBUG ENTER] state={settings.state}, is_campaign={settings.is_campaign}, game_state={game_state}")
                         
                         if (settings.is_campaign and 
-                            not settings.state.startswith("DAY_") and
-                            game_state in ["SUCCESS", "WON", "FAIL", "LOST"]):
+                            not settings.state.startswith("DAY_")):
                             
-                            print("[DEBUG ENTER] Campaign progress triggered! Moving to next day.")
-                            play_sfx("sfx_click")
-                            next_campaign_day()
-                            continue
+                            if game_state in ["SUCCESS", "WON"]:
+                                print("[DEBUG ENTER] Campaign progress triggered (Victory)! Moving to next day.")
+                                play_sfx("sfx_click")
+                                next_campaign_day()
+                                continue
+                            elif game_state in ["FAIL", "LOST"]:
+                                if settings.state == "FIRE_GAME":
+                                    print("[DEBUG ENTER] Fire game failed! Going to main menu (Game Over).")
+                                    play_sfx("sfx_click")
+                                    go_to_main_menu()
+                                    continue
+                                elif settings.state == "GRAVITY_GAME":
+                                    gravity_game = stage_mappings.get("GRAVITY_GAME")
+                                    if gravity_game:
+                                        if getattr(gravity_game, 'penalty_selected', None) is not None:
+                                            gravity_game.apply_penalty()
+                                            print("[DEBUG ENTER] Gravity game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "OVERHEAT_GAME":
+                                    overheat_game = stage_mappings.get("OVERHEAT_GAME")
+                                    if overheat_game:
+                                        if not getattr(overheat_game, 'has_mechanic', False):
+                                            print("[DEBUG ENTER] Overheat game failed and no mechanic! Going to main menu.")
+                                            play_sfx("sfx_click")
+                                            go_to_main_menu()
+                                            continue
+                                        elif getattr(overheat_game, 'penalty_selected', None) is not None:
+                                            overheat_game.apply_penalty()
+                                            print("[DEBUG ENTER] Overheat game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "ROBOT_GAME":
+                                    robot_game = stage_mappings.get("ROBOT_GAME")
+                                    if robot_game:
+                                        if not getattr(robot_game, 'has_police', False):
+                                            print("[DEBUG ENTER] Robot game failed and no police! Going to main menu.")
+                                            play_sfx("sfx_click")
+                                            go_to_main_menu()
+                                            continue
+                                        elif getattr(robot_game, 'penalty_selected', None) is not None:
+                                            robot_game.apply_penalty()
+                                            print("[DEBUG ENTER] Robot game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "RIOT_GAME":
+                                    riot_game = stage_mappings.get("RIOT_GAME")
+                                    if riot_game:
+                                        if getattr(riot_game, 'penalty_selected', None) is not None:
+                                            riot_game.apply_penalty()
+                                            print("[DEBUG ENTER] Riot game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "LIFE_GAME":
+                                    life_game = stage_mappings.get("LIFE_GAME")
+                                    if life_game:
+                                        if getattr(life_game, 'penalty_selected', None) is not None:
+                                            life_game.apply_penalty()
+                                            print("[DEBUG ENTER] Life (Pathogen) game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "NAV_GAME":
+                                    nav_game = stage_mappings.get("NAV_GAME")
+                                    if nav_game:
+                                        if getattr(nav_game, 'penalty_selected', None) is not None:
+                                            nav_game.apply_penalty()
+                                            print("[DEBUG ENTER] Nav game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "ELECTRIC_GAME":
+                                    electric_game = stage_mappings.get("ELECTRIC_GAME")
+                                    if electric_game:
+                                        if getattr(electric_game, 'penalty_selected', None) is not None:
+                                            electric_game.apply_penalty()
+                                            print("[DEBUG ENTER] Electric game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "CALM_GAME":
+                                    calm_game = stage_mappings.get("CALM_GAME")
+                                    if calm_game:
+                                        if getattr(calm_game, 'penalty_selected', None) is not None:
+                                            calm_game.apply_penalty()
+                                            print("[DEBUG ENTER] Calm game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "GRID_GAME":
+                                    grid_game = stage_mappings.get("GRID_GAME")
+                                    if grid_game:
+                                        if getattr(grid_game, 'penalty_selected', None) is not None:
+                                            grid_game.apply_penalty()
+                                            print("[DEBUG ENTER] Grid game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
+                                elif settings.state == "LANDING_GAME":
+                                    landing_game = stage_mappings.get("LANDING_GAME")
+                                    if landing_game:
+                                        if getattr(landing_game, 'penalty_selected', None) is not None:
+                                            landing_game.apply_penalty()
+                                            print("[DEBUG ENTER] Landing game failed! Penalty applied. Moving to next day.")
+                                            play_sfx("sfx_click")
+                                            next_campaign_day()
+                                            continue
                             
                     stage_mappings[settings.state].handle_event(event)
         if settings.minigame_paused:
@@ -2460,6 +2585,124 @@ def main():
                 btn_surf.blit(txt_surf, txt_rect)
                 settings.screen.blit(btn_surf, (rect.x, rect.y))
         
+        # ================= TAB KEY RESOURCE OVERLAY =================
+        if settings.is_campaign and settings.state in [f"DAY_{i}" for i in range(1, 11)]:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_TAB]:
+                # Draw dark blur-vibe backdrop
+                dim = pygame.Surface((settings.width, settings.height), pygame.SRCALPHA)
+                dim.fill((0, 0, 0, 180))
+                settings.screen.blit(dim, (0, 0))
+
+                # Overlay dimensions (expanded height)
+                panel_w = int(settings.width * 0.6)
+                panel_h = int(settings.height * 0.6)
+                panel_x = (settings.width - panel_w) // 2
+                panel_y = (settings.height - panel_h) // 2
+                
+                panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+                # Outer rects
+                pygame.draw.rect(panel_surf, (15, 8, 3, 230), (0, 0, panel_w, panel_h), border_radius=10)
+                pygame.draw.rect(panel_surf, CRT_GREEN, (0, 0, panel_w, panel_h), 3, border_radius=10)
+                pygame.draw.rect(panel_surf, CRT_BRIGHT, (4, 4, panel_w - 8, panel_h - 8), 1, border_radius=8)
+                
+                # Title text
+                title_font = get_scaled_font(22, is_korean=True)
+                title_surf = title_font.render("📋 수집 자원 및 크루 목록 (TAB)", True, CRT_BRIGHT)
+                panel_surf.blit(title_surf, (panel_w // 2 - title_surf.get_width() // 2, 25))
+                
+                # Get current resources and crew list
+                res = {"산소": 0, "전기": 0, "정신력": 0}
+                crew = []
+                if hasattr(settings, 'resources_game') and settings.resources_game:
+                    res = getattr(settings.resources_game, 'resources', res)
+                    crew = getattr(settings.resources_game, 'my_crew', crew)
+                
+                content_font = get_scaled_font(18, is_korean=True)
+                sub_font = get_scaled_font(14, is_korean=True)
+                
+                # 3. 우주선 항해 진행도 (Day 0 ~ Day 10)
+                y_offset = 70
+                progress_lbl = content_font.render("■ 우주선 항해 진행도", True, CRT_GREEN)
+                panel_surf.blit(progress_lbl, (40, y_offset))
+                y_offset += 30
+                
+                curr_day = settings.current_day
+                day_percent = int(curr_day * 10)
+                
+                pbar_x = 120
+                pbar_w = 380
+                pbar_h = 16
+                pygame.draw.rect(panel_surf, (30, 15, 5), (pbar_x, y_offset + 2, pbar_w, pbar_h))
+                pygame.draw.rect(panel_surf, CRT_GREEN, (pbar_x, y_offset + 2, pbar_w, pbar_h), 1)
+                
+                pfill_w = int(pbar_w * (curr_day / 10.0))
+                if pfill_w > 0:
+                    pygame.draw.rect(panel_surf, CRT_BRIGHT, (pbar_x + 2, y_offset + 4, pfill_w - 4, pbar_h - 4))
+                    
+                day_lbl_left = sub_font.render("Day 0", True, WHITE)
+                panel_surf.blit(day_lbl_left, (pbar_x - day_lbl_left.get_width() - 10, y_offset))
+                
+                day_lbl_right = sub_font.render("Day 10", True, WHITE)
+                panel_surf.blit(day_lbl_right, (pbar_x + pbar_w + 10, y_offset))
+                
+                y_offset += 22
+                status_str = f"▶ 현재: {curr_day}일차 항해 중 ({day_percent}% 돌파)"
+                status_surf = sub_font.render(status_str, True, CRT_BRIGHT)
+                panel_surf.blit(status_surf, (pbar_x, y_offset))
+                
+                # 4. 보유 자원 현황
+                y_offset += 38
+                res_lbl = content_font.render("■ 보유 자원 현황", True, CRT_GREEN)
+                panel_surf.blit(res_lbl, (40, y_offset))
+                y_offset += 35
+                
+                for rname, rval in res.items():
+                    lbl_text = f"{rname}: {rval}/200"
+                    r_text_surf = sub_font.render(lbl_text, True, WHITE)
+                    panel_surf.blit(r_text_surf, (50, y_offset))
+                    
+                    bar_x = 180
+                    bar_w = 320
+                    bar_h = 16
+                    pygame.draw.rect(panel_surf, (30, 15, 5), (bar_x, y_offset + 2, bar_w, bar_h))
+                    pygame.draw.rect(panel_surf, CRT_GREEN, (bar_x, y_offset + 2, bar_w, bar_h), 1)
+                    
+                    fill_w = int(bar_w * (min(200, rval) / 200.0))
+                    if fill_w > 0:
+                        pygame.draw.rect(panel_surf, CRT_GREEN, (bar_x + 2, y_offset + 4, fill_w - 4, bar_h - 4))
+                        
+                    y_offset += 30
+                
+                # 5. 탑승 크루 목록
+                y_offset += 15
+                crew_lbl = content_font.render("■ 탑승 크루 목록", True, CRT_GREEN)
+                panel_surf.blit(crew_lbl, (40, y_offset))
+                y_offset += 35
+                
+                crew_str = ", ".join(crew) if crew else "없음 (수집된 크루가 없습니다)"
+                crew_words_surf = sub_font.render(crew_str, True, WHITE)
+                if crew_words_surf.get_width() > panel_w - 100:
+                    words = crew_str.split(", ")
+                    line1 = ", ".join(words[:4])
+                    line2 = ", ".join(words[4:])
+                    
+                    c_surf1 = sub_font.render(line1, True, WHITE)
+                    panel_surf.blit(c_surf1, (50, y_offset))
+                    y_offset += 25
+                    if line2:
+                        c_surf2 = sub_font.render(line2, True, WHITE)
+                        panel_surf.blit(c_surf2, (50, y_offset))
+                else:
+                    panel_surf.blit(crew_words_surf, (50, y_offset))
+                
+                tip_font = get_scaled_font(12, is_korean=True)
+                tip_surf = tip_font.render("[ TAB 키를 떼면 화면이 닫힙니다 ]", True, GRAY)
+                panel_surf.blit(tip_surf, (panel_w // 2 - tip_surf.get_width() // 2, panel_h - 30))
+                
+                settings.screen.blit(panel_surf, (panel_x, panel_y))
+        # =============================================================
+
         # ================= QA CHEAT SKIP BUTTON DRAWING (EASY TO DELETE) =================
         if settings.is_campaign:
             qa_btn_rect = pygame.Rect(settings.width - 160, 20, 140, 35)

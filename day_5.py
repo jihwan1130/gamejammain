@@ -404,6 +404,12 @@ class Day5Manager:
     def reset(self):
         self.state = "INTRO_TEXT" # INTRO_TEXT, NAVIGATION, GLITCH_BG, WARNING_TOAST, GAMEPLAY, SUCCESS_LOGS, FAIL_LOGS
         self.navigation_start_ticks = 0
+        if self.__class__.__module__ == '__main__':
+            try:
+                pygame.mixer.music.load(os.path.join("assets", "engine.mp3"))
+                pygame.mixer.music.play(-1)
+            except Exception as e:
+                print(f"engine.mp3 재생 실패: {e}")
         self.check_count = 0
         self.incident_triggered = False
         
@@ -627,6 +633,10 @@ class Day5Manager:
                     except:
                         pass
                 self.state = "WARNING_TOAST"
+                try:
+                    pygame.mixer.music.stop()
+                except:
+                    pass
                 if self.alarm_sound:
                     try:
                         settings = getattr(self, 'settings', None)

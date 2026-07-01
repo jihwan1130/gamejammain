@@ -65,6 +65,17 @@ class Day10Manager:
             except Exception as e:
                 print(f"ending_{ending}.png 로드 실패: {e}")
 
+        # 신규 엔딩 배경화면 로드 시도
+        self.ending_imgs_new = {}
+        for ending_key, filename in [("b", "yellowww.png"), ("a", "blueee.png"), ("c", "redddd.png")]:
+            try:
+                img_path = os.path.join("assets", filename)
+                if os.path.exists(img_path):
+                    raw_img = pygame.image.load(img_path).convert()
+                    self.ending_imgs_new[ending_key] = pygame.transform.scale(raw_img, (1000, 700))
+            except Exception as e:
+                print(f"{filename} 로드 실패: {e}")
+
         self.init_fonts()
         self.reset()
 
@@ -224,6 +235,12 @@ class Day10Manager:
     def reset(self):
         self.state = "INTRO_TEXT" # INTRO_TEXT, NAVIGATION, GLITCH_BG, WARNING_TOAST, PLAYING, FAIL, SHOW_ENDING
         self.navigation_start_ticks = 0
+        if self.__class__.__module__ == '__main__':
+            try:
+                pygame.mixer.music.load(os.path.join("assets", "engine.mp3"))
+                pygame.mixer.music.play(-1)
+            except Exception as e:
+                print(f"engine.mp3 재생 실패: {e}")
         self.check_count = 0
         self.incident_triggered = False
         
@@ -494,10 +511,8 @@ class Day10Manager:
                             
                     if is_finished:
                         self.stop_all_sounds()
-                        self.state = "NAVIGATION"
-                        self.navigation_start_ticks = pygame.time.get_ticks()
-                        self.check_count = 0
-                        self.incident_triggered = False
+                        self.state = "SHOW_ENDING"
+                        self.trigger_ending_unlock()
                         if play_sfx:
                             try:
                                 play_sfx("sfx_click")
@@ -889,49 +904,73 @@ class Day10Manager:
             
             # Default to Ending C: 제2의 지구 (earth2)
             ending_key = "c"
-            ending_title = "■ ENDING C: 제2의 지구 (EARTH PLANET) ■"
-            ending_desc1 = "우주선은 푸르고 온화한 대기를 가진 지구형 행성에 안착하였습니다."
-            ending_desc2 = "인류의 새로운 역사가 이곳에서 시작됩니다."
+            ending_title = "■ ENDING C: 외계인의 노예 ■"
+            ending_desc1 = "이곳의 외계인들은 인간에게 적대적입니다."
+            ending_desc2 = "그들의 노예 생활이 시작됩니다."
             theme_color = (80, 240, 120)
             bg_color_overlay = (10, 40, 10, 200)
 
             if selected == "blue2":
                 ending_key = "a"
-                ending_title = "■ ENDING A: 푸른 행성의 인도자 (BLUE PLANET) ■"
-                ending_desc1 = "표면 전체가 물로 뒤덮인 아름답고 신비로운 행성에 도달하였습니다."
-                ending_desc2 = "심해 탐사와 수중 도시 건설을 위한 첫 걸음을 내딛습니다."
+                ending_title = "■ ENDING B: 푸른 행성의 조우자 (BLUE PLANET) ■"
+                ending_desc1 = "인간들과 호의적인 외계인과 조우합니다."
+                ending_desc2 = "그들과 함께 공존하는 방법을 터득해 갑니다."
                 theme_color = (60, 180, 255)
                 bg_color_overlay = (10, 10, 40, 200)
             elif selected == "red2":
                 ending_key = "b"
-                ending_title = "■ ENDING B: 붉은 행성의 개척자 (RED PLANET) ■"
-                ending_desc1 = "척박하지만 광물이 풍부한 붉은 행성에 무사히 착륙하였습니다."
-                ending_desc2 = "생존을 위한 기지 건설과 자원 채굴 작업이 개시됩니다."
+                ending_title = "■ ENDING A: 붉은 행성의 인도자 (RED PLANET) ■"
+                ending_desc1 = "표면 전체가 물로 뒤덮인 아름답고 신비로운 행성에 도달하였습니다."
+                ending_desc2 = "심해 탐사와 수중 도시 건설을 위한 첫 걸음을 내딛습니다."
                 theme_color = (255, 80, 60)
                 bg_color_overlay = (40, 10, 10, 200)
 
-            # 이미지 출력 시도 (a, b, c 또는 red, blue, earth 에셋 모두 호환되도록 처리)
-            img_key = ending_key
-            if img_key not in self.ending_imgs:
-                if ending_key == "a" and "blue" in self.ending_imgs:
-                    img_key = "blue"
-                elif ending_key == "b" and "red" in self.ending_imgs:
-                    img_key = "red"
-                elif ending_key == "c" and "earth" in self.ending_imgs:
-                    img_key = "earth"
+            # 이미지 출력 시도 (신규 엔딩 배경 우선 적용, 없을 시 기존 로직 유지)
+            bg_drawn = False
+            if ending_key not in getattr(self, 'ending_imgs_new', {}):
+                if not hasattr(self, 'ending_imgs_failed'):
+                    self.ending_imgs_failed = set()
+                if ending_key not in self.ending_imgs_failed:
+                    filename_map = {"b": "yellowww.png", "a": "blueee.png", "c": "redddd.png"}
+                    if ending_key in filename_map:
+                        filename = filename_map[ending_key]
+                        img_path = os.path.join("assets", filename)
+                        if os.path.exists(img_path):
+                            try:
+                                raw_img = pygame.image.load(img_path).convert()
+                                self.ending_imgs_new[ending_key] = pygame.transform.scale(raw_img, (1000, 700))
+                            except Exception as e:
+                                print(f"On-demand {filename} 로드 실패: {e}")
+                                self.ending_imgs_failed.add(ending_key)
+                        else:
+                            self.ending_imgs_failed.add(ending_key)
 
-            if img_key in self.ending_imgs:
-                virtual_surf.blit(self.ending_imgs[img_key], (0, 0))
-            elif self.bg_img:
-                virtual_surf.blit(self.bg_img, (0, 0))
-                overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-                overlay.fill(bg_color_overlay)
-                virtual_surf.blit(overlay, (0, 0))
-            else:
-                virtual_surf.fill((10, 10, 20))
-                overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-                overlay.fill(bg_color_overlay)
-                virtual_surf.blit(overlay, (0, 0))
+            if ending_key in getattr(self, 'ending_imgs_new', {}):
+                virtual_surf.blit(self.ending_imgs_new[ending_key], (0, 0))
+                bg_drawn = True
+
+            if not bg_drawn:
+                img_key = ending_key
+                if img_key not in self.ending_imgs:
+                    if ending_key == "a" and "blue" in self.ending_imgs:
+                        img_key = "blue"
+                    elif ending_key == "b" and "red" in self.ending_imgs:
+                        img_key = "red"
+                    elif ending_key == "c" and "earth" in self.ending_imgs:
+                        img_key = "earth"
+
+                if img_key in self.ending_imgs:
+                    virtual_surf.blit(self.ending_imgs[img_key], (0, 0))
+                elif self.bg_img:
+                    virtual_surf.blit(self.bg_img, (0, 0))
+                    overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+                    overlay.fill(bg_color_overlay)
+                    virtual_surf.blit(overlay, (0, 0))
+                else:
+                    virtual_surf.fill((10, 10, 20))
+                    overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+                    overlay.fill(bg_color_overlay)
+                    virtual_surf.blit(overlay, (0, 0))
 
             panel_w, panel_h = 750, 300
             panel_x, panel_y = 500 - panel_w // 2, 350 - panel_h // 2

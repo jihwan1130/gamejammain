@@ -161,8 +161,13 @@ class FireGame:
         settings = get_main_val('settings')
         play_sfx = get_main_val('play_sfx')
         go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        go_to_main_menu = get_main_val('go_to_main_menu')
         keyboard_sfx = get_main_val('keyboard_sfx')
         
+        is_campaign = False
+        if settings and settings.is_campaign:
+            is_campaign = True
+            
         if self.state not in ["PLAYING", "COUNTDOWN"]:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -171,17 +176,33 @@ class FireGame:
                     if go_to_minigames:
                         go_to_minigames()
                 elif event.key == pygame.K_RETURN:
-                    self.reset()
-                    if keyboard_sfx and settings:
-                        keyboard_sfx.set_volume(settings.volume)
-                        keyboard_sfx.play()
-                    try:
-                        play_music_track = get_main_val('play_music_track')
-                        fire_music = get_main_val('FIRE_MUSIC_PATH', os.path.join("assets", "firefirefire.MP3"))
-                        if play_music_track and fire_music:
-                            play_music_track(fire_music, fade_ms=0)
-                    except Exception as e:
-                        print(f"화재진압 음악 재생 실패: {e}")
+                    if self.state == "FAIL":
+                        if play_sfx:
+                            play_sfx("sfx_end")
+                        if is_campaign:
+                            if go_to_main_menu:
+                                go_to_main_menu()
+                            else:
+                                pygame.quit()
+                                sys.exit()
+                        else:
+                            if go_to_minigames:
+                                go_to_minigames()
+                            else:
+                                pygame.quit()
+                                sys.exit()
+                    else:
+                        self.reset()
+                        if keyboard_sfx and settings:
+                            keyboard_sfx.set_volume(settings.volume)
+                            keyboard_sfx.play()
+                        try:
+                            play_music_track = get_main_val('play_music_track')
+                            fire_music = get_main_val('FIRE_MUSIC_PATH', os.path.join("assets", "firefirefire.MP3"))
+                            if play_music_track and fire_music:
+                                play_music_track(fire_music, fade_ms=0)
+                        except Exception as e:
+                            print(f"화재진압 음악 재생 실패: {e}")
             return
             
         if event.type == pygame.KEYDOWN:
@@ -259,16 +280,19 @@ class FireGame:
             if settings and settings.is_campaign:
                 is_campaign = True
                 
-            if is_campaign:
-                sub_text = "[ ENTER: 계속 진행 ]"
-            else:
-                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
-                
             if self.state == "SUCCESS":
+                if is_campaign:
+                    sub_text = "[ ENTER: 계속 진행 ]"
+                else:
+                    sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
                 msg = font_main.render("■ 화재 진압 성공 (SUCCESS) ■", True, (70, 220, 70))
                 sub = font_sub.render(sub_text, True, WHITE)
             else:
-                msg = font_main.render("🚨 화재 제어 실패 - 원자로 과열 (FAIL) 🚨", True, (220, 60, 40))
+                if is_campaign:
+                    sub_text = "[ ENTER: 메인 메뉴로 ]"
+                else:
+                    sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                msg = font_main.render("🚨 우주선이 불에 탔습니다 🚨", True, (220, 60, 40))
                 sub = font_sub.render(sub_text, True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))

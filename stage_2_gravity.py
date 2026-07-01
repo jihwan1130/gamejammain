@@ -40,6 +40,32 @@ class GravityHullRepairGame:
         self.elapsed_time = 0
         self.limit_time = 10.0
         self.state = "PLAYING" # PLAYING, SUCCESS, FAIL
+        self.penalty_selected = None
+        self.selected_dead_crew = None
+        
+    def on_fail(self):
+        self.penalty_selected = None
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        if resources_game and hasattr(resources_game, 'my_crew') and resources_game.my_crew:
+            self.selected_dead_crew = random.choice(resources_game.my_crew)
+        else:
+            self.selected_dead_crew = None
+
+    def apply_penalty(self):
+        settings = get_main_val('settings')
+        resources_game = getattr(settings, 'resources_game', None) if settings else None
+        if not resources_game:
+            return
+        if self.penalty_selected == 1:
+            if self.selected_dead_crew and hasattr(resources_game, 'my_crew'):
+                if self.selected_dead_crew in resources_game.my_crew:
+                    resources_game.my_crew.remove(self.selected_dead_crew)
+                    print(f"[PENALTY] Crew '{self.selected_dead_crew}' died.")
+        elif self.penalty_selected == 2:
+            if hasattr(resources_game, 'resources') and "정신력" in resources_game.resources:
+                resources_game.resources["정신력"] = max(0, resources_game.resources["정신력"] - 50)
+                print(f"[PENALTY] Mental decreased by 50. Current: {resources_game.resources['정신력']}")
         
     def update(self):
         if self.state == "PLAYING":
@@ -49,6 +75,7 @@ class GravityHullRepairGame:
                 self.state = "SUCCESS"
             elif self.elapsed_time >= self.limit_time:
                 self.state = "FAIL"
+                self.on_fail()
                 
     def handle_input(self):
         pass
@@ -56,9 +83,47 @@ class GravityHullRepairGame:
     def handle_event(self, event):
         settings = get_main_val('settings')
         vol = settings.volume if settings else 0.5
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
         go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        go_to_main_menu = get_main_val('go_to_main_menu')
         play_sfx = get_main_val('play_sfx')
         keyboard_sfx = get_main_val('keyboard_sfx')
+        
+        is_campaign = False
+        if settings and settings.is_campaign:
+            is_campaign = True
+            
+        if self.state == "FAIL":
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                mx, my = event.pos
+                vmx = int(mx * 1000 / width)
+                vmy = int(my * 700 / height)
+                
+                # 버튼 1 영역: (200, 400, 260, 90)
+                # 버튼 2 영역: (540, 400, 260, 90)
+                btn1_rect = pygame.Rect(200, 400, 260, 90)
+                btn2_rect = pygame.Rect(540, 400, 260, 90)
+                
+                if btn1_rect.collidepoint(vmx, vmy):
+                    if self.selected_dead_crew:
+                        self.penalty_selected = 1
+                        if play_sfx:
+                            play_sfx("sfx_click")
+                elif btn2_rect.collidepoint(vmx, vmy):
+                    self.penalty_selected = 2
+                    if play_sfx:
+                        play_sfx("sfx_click")
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    if self.selected_dead_crew:
+                        self.penalty_selected = 1
+                        if play_sfx:
+                            play_sfx("sfx_click")
+                elif event.key == pygame.K_2:
+                    self.penalty_selected = 2
+                    if play_sfx:
+                        play_sfx("sfx_click")
             
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
@@ -68,10 +133,18 @@ class GravityHullRepairGame:
                     if go_to_minigames:
                         go_to_minigames()
                 elif event.key == pygame.K_RETURN:
-                    self.reset()
-                    if keyboard_sfx:
-                        keyboard_sfx.set_volume(vol)
-                        keyboard_sfx.play()
+                    if self.state == "FAIL":
+                        if self.penalty_selected is None:
+                            return
+                        else:
+                            self.apply_penalty()
+                    if is_campaign:
+                        pass
+                    else:
+                        self.reset()
+                        if keyboard_sfx:
+                            keyboard_sfx.set_volume(vol)
+                            keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
@@ -159,18 +232,72 @@ class GravityHullRepairGame:
                 is_campaign = True
                 
             if is_campaign:
-                sub_text = "[ ENTER: 계속 진행 ]"
+                sub_text = "[ ENTER: 결과 확인 및 계속 진행 ]"
             else:
                 sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
                 
             if self.state == "SUCCESS":
                 msg = font_main.render("■ 선체 외부 격벽 복구 성공 (SUCCESS) ■", True, theme_purple)
                 sub = font_sub.render(sub_text, True, WHITE)
+                virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
+                virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             else:
                 msg = font_main.render("🚨 구조 피로도 한계 도달 (FAIL) 🚨", True, (240, 60, 60))
-                sub = font_sub.render(sub_text, True, WHITE)
-            virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
-            virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
+                virtual_surf.blit(msg, (500 - msg.get_width()//2, 280))
+                
+                if self.penalty_selected is None:
+                    desc_text = "다음 패널티 중 하나를 반드시 선택해야 진행할 수 있습니다. (1번 또는 2번 키/클릭)"
+                else:
+                    selected_name = "동료의 희생" if self.penalty_selected == 1 else "정신적 붕괴"
+                    desc_text = f"선택 완료: [{selected_name}] - {sub_text}"
+                    
+                lbl_desc = font_sub.render(desc_text, True, (250, 200, 100))
+                virtual_surf.blit(lbl_desc, (500 - lbl_desc.get_width()//2, 330))
+                
+                # 버튼 그리기
+                btn1_rect = pygame.Rect(200, 400, 260, 90)
+                btn2_rect = pygame.Rect(540, 400, 260, 90)
+                
+                # 마우스 호버 상태 체크 (가상 좌표 기준)
+                width = settings.width if settings else 1000
+                height = settings.height if settings else 700
+                mx, my = pygame.mouse.get_pos()
+                vmx = int(mx * 1000 / width)
+                vmy = int(my * 700 / height)
+                
+                hover_btn1 = btn1_rect.collidepoint(vmx, vmy)
+                hover_btn2 = btn2_rect.collidepoint(vmx, vmy)
+                
+                # 버튼 1: 동료의 희생
+                b1_color = (80, 20, 20) if self.penalty_selected == 1 else ((40, 10, 10) if hover_btn1 else (20, 5, 5))
+                if not self.selected_dead_crew:
+                    b1_color = (30, 30, 30)
+                
+                pygame.draw.rect(virtual_surf, b1_color, btn1_rect)
+                pygame.draw.rect(virtual_surf, (240, 60, 60), btn1_rect, 2 if self.penalty_selected == 1 else 1)
+                
+                b1_title = font_main.render("1. 동료의 희생", True, (255, 200, 200))
+                if self.selected_dead_crew:
+                    b1_desc = font_sub.render(f"사망: [{self.selected_dead_crew}]", True, (240, 100, 100))
+                else:
+                    b1_desc = font_sub.render("(희생할 동료 없음)", True, (150, 150, 150))
+                virtual_surf.blit(b1_title, (330 - b1_title.get_width()//2, 415))
+                virtual_surf.blit(b1_desc, (330 - b1_desc.get_width()//2, 450))
+                
+                # 버튼 2: 정신적 붕괴
+                b2_color = (40, 40, 80) if self.penalty_selected == 2 else ((20, 20, 40) if hover_btn2 else (10, 10, 20))
+                pygame.draw.rect(virtual_surf, b2_color, btn2_rect)
+                pygame.draw.rect(virtual_surf, theme_purple, btn2_rect, 2 if self.penalty_selected == 2 else 1)
+                
+                b2_title = font_main.render("2. 정신적 붕괴", True, (200, 200, 255))
+                b2_desc = font_sub.render("정신력 -50", True, theme_purple)
+                virtual_surf.blit(b2_title, (670 - b2_title.get_width()//2, 415))
+                virtual_surf.blit(b2_desc, (670 - b2_desc.get_width()//2, 450))
+                
+                # 엔터 힌트 그리기
+                if self.penalty_selected is not None:
+                    lbl_enter = font_sub.render(sub_text, True, WHITE)
+                    virtual_surf.blit(lbl_enter, (500 - lbl_enter.get_width()//2, 530))
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
 
