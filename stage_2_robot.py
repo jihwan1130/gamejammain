@@ -2,7 +2,7 @@ import pygame
 import os
 import random
 
-from stage_1_robot import RogueRobotGame as BaseRogueRobotGame
+
 
 def load_gif_frames(filepath):
     frames = []
@@ -20,10 +20,8 @@ def load_gif_frames(filepath):
         print(f"GIF 프레임 로드 실패: {e}")
     return frames
 
-class RogueRobotGame(BaseRogueRobotGame):
+class RogueRobotGame:
     def __init__(self):
-        super().__init__()
-        
         # 1. 배경 이미지 로드
         self.bg_img = None
         try:
@@ -54,6 +52,8 @@ class RogueRobotGame(BaseRogueRobotGame):
         except Exception as e:
             print(f"gun2.MP3 로드 실패: {e}")
             
+        self.reset()
+            
     def reset(self):
         self.robots = []
         size = 112  # 로봇 캐릭터 크기
@@ -72,6 +72,25 @@ class RogueRobotGame(BaseRogueRobotGame):
         self.limit_time = 8.0  # 시간 2초 단축 (10.0 -> 8.0)
         self.elapsed_time = 0
         self.state = "PLAYING"
+            
+    def update(self):
+        if self.state == "PLAYING":
+            self.elapsed_time = (pygame.time.get_ticks() - self.start_ticks) / 1000.0
+            
+            for r in self.robots:
+                rect = r["rect"]
+                rect.x += r["vx"]
+                rect.y += r["vy"]
+                if rect.left < 40 or rect.right > 960: r["vx"] *= -1
+                if rect.top < 140 or rect.bottom > 660: r["vy"] *= -1
+                
+            if len(self.robots) == 0:
+                self.state = "SUCCESS"
+            elif self.elapsed_time >= self.limit_time:
+                self.state = "FAIL"
+                
+    def handle_input(self):
+        pass
             
     def draw(self, surface):
         from main import CRT_GREEN, WHITE, get_scaled_font
