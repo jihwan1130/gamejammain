@@ -112,7 +112,7 @@ class Day7Manager:
         return True
 
     def reset(self):
-        self.state = "START_WAIT" # START_WAIT, GLITCH_BG, WARNING_TOAST, GAMEPLAY
+        self.state = "INTRO_TEXT" # INTRO_TEXT, START_WAIT, GLITCH_BG, WARNING_TOAST, GAMEPLAY
         self.start_ticks = pygame.time.get_ticks()
         self.glitch_entered_ticks = 0
         
@@ -121,7 +121,12 @@ class Day7Manager:
         self.check_count = 0
         self.incident_triggered = False
         
-        self.comments = []
+        self.comments = [
+            "7일차 항해를 시작했습니다.",
+            "우주선에서 발생하는 문제를 해결하고, 무사히 목적지까지 도달해주세요.",
+            "",
+            "▶ [ SPACE ] 키를 눌러 계속 진행하십시오."
+        ]
         self.displayed_lines = []
         
         self.typewriter_index = 0
@@ -261,7 +266,9 @@ class Day7Manager:
         self.state = "GAMEPLAY"
 
     def update(self):
-        if self.state == "START_WAIT":
+        if self.state == "INTRO_TEXT":
+            self.update_typewriter(self.comments)
+        elif self.state == "START_WAIT":
             now = pygame.time.get_ticks()
             elapsed = (now - self.start_ticks) / 1000.0
             if elapsed >= 3.0:
@@ -344,8 +351,8 @@ class Day7Manager:
                             
                     if is_finished:
                         self.stop_all_sounds()
-                        self.state = "NAVIGATION"
-                        self.navigation_start_ticks = pygame.time.get_ticks()
+                        self.state = "START_WAIT"
+                        self.start_ticks = pygame.time.get_ticks()
                         self.check_count = 0
                         self.incident_triggered = False
                         try:

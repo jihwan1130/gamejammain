@@ -210,8 +210,7 @@ def play_music_track(path, fade_ms=0, loops=-1):
         settings.current_music_path = path
         pygame.mixer.music.stop()
         try:
-            pyg;  
-            ame.mixer.music.unload()
+            pygame.mixer.music.unload()
         except:
             pass
         pygame.mixer.music.load(path)
@@ -307,7 +306,7 @@ def play_sfx(sfx_name):
         elif sfx_name == "sfx_crash" and crash_sfx:
             crash_sfx.set_volume(settings.volume * 0.7)
             crash_sfx.play()
-    except Exception as e:
+    except Exception as e:  
         print(f"SFX 재생 실패 ({sfx_name}): {e}")
 
 clock = pygame.time.Clock()

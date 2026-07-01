@@ -15,6 +15,32 @@ def get_main_val(name, default=None):
     return default
 
 class Day10Manager:
+    def get_main_ref(self):
+        settings = getattr(self, 'settings', None)
+        play_sfx = getattr(self, 'play_sfx', None)
+        go_to_main_menu = getattr(self, 'go_to_main_menu', None)
+        play_music_track = getattr(self, 'play_music_track', None)
+        stage_mappings = getattr(self, 'stage_mappings', None)
+        
+        if not settings or not play_sfx or not go_to_main_menu or not play_music_track or not stage_mappings:
+            try:
+                import sys
+                main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+                if main_mod:
+                    if not settings:
+                        self.settings = getattr(main_mod, 'settings', None)
+                    if not play_sfx:
+                        self.play_sfx = getattr(main_mod, 'play_sfx', None)
+                    if not go_to_main_menu:
+                        self.go_to_main_menu = getattr(main_mod, 'go_to_main_menu', None)
+                    if not play_music_track:
+                        self.play_music_track = getattr(main_mod, 'play_music_track', None)
+                    if not stage_mappings:
+                        self.stage_mappings = getattr(main_mod, 'stage_mappings', None)
+            except:
+                pass
+        return True
+
     def __init__(self):
         self.words = ["도착", "착륙", "생존", "미래", "희망", "개척", "안착", "시작"]
         self.bg_img = None
@@ -183,7 +209,8 @@ class Day10Manager:
         return positions
 
     def trigger_ending_unlock(self):
-        settings = get_main_val('settings')
+        self.get_main_ref()
+        settings = getattr(self, 'settings', None) or get_main_val('settings')
         progress = get_main_val('progress')
         if settings and progress:
             selected = getattr(settings, 'selected_planet', 'earth2')
@@ -325,7 +352,8 @@ class Day10Manager:
                 
                 if not playing:
                     try:
-                        settings = get_main_val('settings')
+                        self.get_main_ref()
+                        settings = getattr(self, 'settings', None) or get_main_val('settings')
                         self.type_sound.set_volume(settings.volume if settings else 0.5)
                     except:
                         self.type_sound.set_volume(0.5)
@@ -360,6 +388,10 @@ class Day10Manager:
                 pass
 
     def update(self):
+        self.get_main_ref()
+        settings = getattr(self, 'settings', None) or get_main_val('settings')
+        play_sfx = getattr(self, 'play_sfx', None) or get_main_val('play_sfx')
+        
         if self.state == "INTRO_TEXT":
             self.update_typewriter(self.comments)
         elif self.state == "NAVIGATION":
@@ -375,14 +407,12 @@ class Day10Manager:
                 self.glitch_entered_ticks = pygame.time.get_ticks()
                 if self.glitch_sound:
                     try:
-                        settings = get_main_val('settings')
                         vol = settings.volume if settings else 0.5
                         self.glitch_sound.set_volume(vol * 0.7)
                         self.glitch_sound.play(-1) # 루프 재생
                     except:
                         pass
                 try:
-                    play_sfx = get_main_val('play_sfx')
                     if play_sfx:
                         play_sfx("sfx_crash")
                 except:
@@ -405,7 +435,6 @@ class Day10Manager:
                 # 비상 경고음 재생
                 if self.alarm_sound:
                     try:
-                        settings = get_main_val('settings')
                         vol = settings.volume if settings else 0.5
                         self.alarm_sound.set_volume(vol * 0.8)
                     except:
@@ -415,7 +444,6 @@ class Day10Manager:
                     except:
                         pass
                 try:
-                    play_sfx = get_main_val('play_sfx')
                     if play_sfx:
                         play_sfx("sfx_crash")
                 except:
@@ -433,10 +461,11 @@ class Day10Manager:
         pass
 
     def handle_event(self, event):
-        settings = get_main_val('settings')
+        self.get_main_ref()
+        settings = getattr(self, 'settings', None) or get_main_val('settings')
         vol = settings.volume if settings else 0.5
-        play_sfx = get_main_val('play_sfx')
-        go_to_main_menu = get_main_val('go_to_main_menu')
+        play_sfx = getattr(self, 'play_sfx', None) or get_main_val('play_sfx')
+        go_to_main_menu = getattr(self, 'go_to_main_menu', None) or get_main_val('go_to_main_menu')
         keyboard_sfx = get_main_val('keyboard_sfx')
         
         if event.type == pygame.KEYDOWN:
@@ -465,8 +494,7 @@ class Day10Manager:
                             
                     if is_finished:
                         self.stop_all_sounds()
-                        self.state = "SHOW_ENDING"
-                        self.trigger_ending_unlock()
+                        self.state = "NAVIGATION"
                         self.navigation_start_ticks = pygame.time.get_ticks()
                         self.check_count = 0
                         self.incident_triggered = False
@@ -525,6 +553,7 @@ class Day10Manager:
                     if matched:
                         if all(w["done"] for w in self.word_data):
                             self.state = "SHOW_ENDING"
+                            self.trigger_ending_unlock()
                             pygame.key.stop_text_input()
                     else:
                         self.user_input = ""
@@ -559,8 +588,9 @@ class Day10Manager:
                         settings.campaign_next_requested = True
 
     def draw(self, surface):
+        self.get_main_ref()
         WHITE = get_main_val('WHITE', (255, 255, 255))
-        settings = get_main_val('settings')
+        settings = getattr(self, 'settings', None) or get_main_val('settings')
         
         # 색상 테마 정의
         COLOR_THEME = (230, 160, 40)
@@ -855,7 +885,7 @@ class Day10Manager:
 
         # 6. SHOW_ENDING 행성별 엔딩 연출
         elif self.state == "SHOW_ENDING":
-            selected = getattr(settings, 'selected_planet', 'earth2')
+            selected = getattr(settings, 'selected_planet', 'earth2') if settings else 'earth2'
             
             # Default to Ending C: 제2의 지구 (earth2)
             ending_key = "c"
