@@ -29,6 +29,9 @@ from day4 import Day4Manager
 from day_5 import Day5Manager
 from day6 import Day6Manager
 from day7 import Day7Manager
+from day8 import Day8Manager
+from day9 import Day9Manager
+from day10 import Day10Manager
 
 
 
@@ -207,7 +210,8 @@ def play_music_track(path, fade_ms=0, loops=-1):
         settings.current_music_path = path
         pygame.mixer.music.stop()
         try:
-            pygame.mixer.music.unload()
+            pyg;  
+            ame.mixer.music.unload()
         except:
             pass
         pygame.mixer.music.load(path)
@@ -1523,6 +1527,9 @@ def main():
     day_5_manager = Day5Manager()
     day_6_manager = Day6Manager()
     day_7_manager = Day7Manager()
+    day_8_manager = Day8Manager()
+    day_9_manager = Day9Manager()
+    day_10_manager = Day10Manager()
     
     settings.resources_game = resources_game
     settings.day_0_manager = day_0_manager
@@ -1533,6 +1540,9 @@ def main():
     settings.day_5_manager = day_5_manager
     settings.day_6_manager = day_6_manager
     settings.day_7_manager = day_7_manager
+    settings.day_8_manager = day_8_manager
+    settings.day_9_manager = day_9_manager
+    settings.day_10_manager = day_10_manager
     settings.fire_game = fire_game
 
     
@@ -1558,10 +1568,13 @@ def main():
         "DAY_5": day_5_manager,
         "DAY_6": day_6_manager,
         "DAY_7": day_7_manager,
+        "DAY_8": day_8_manager,
+        "DAY_9": day_9_manager,
+        "DAY_10": day_10_manager,
     }
     
     # 순환 참조 방지를 위해 메인 프레임워크의 settings 및 sfx 함수를 각 매니저에 직접 주입
-    for mgr in [day_0_manager, day_1_manager, day_2_manager, day_3_manager, day_4_manager, day_5_manager, day_6_manager, day_7_manager]:
+    for mgr in [day_0_manager, day_1_manager, day_2_manager, day_3_manager, day_4_manager, day_5_manager, day_6_manager, day_7_manager, day_8_manager, day_9_manager, day_10_manager]:
         if mgr:
             mgr.settings = settings
             mgr.play_sfx = play_sfx
@@ -2224,10 +2237,9 @@ def main():
             settings.screen.blit(endings_header, (left_x, start_y))
             
             endings_list = [
-                ("ending_a", "엔딩 A: 유토피아 재탄생", "중력 격자를 복구하고 유토피아-II warp 링크를 연결했습니다."),
-                ("ending_b", "엔딩 B: 공허 속의 미아", "원자로 폭주로 인해 시스템이 중지되어 우주를 부유하게 되었습니다."),
-                ("ending_c", "엔딩 C: 인공지능의 반란", "터미널 AI가 통제권을 가져가며 인간 크루의 접속을 영구 차단했습니다."),
-                ("ending_d", "엔딩 D: 지구의 메아리", "고대 통신 로그를 해독하고 과거 인류의 행성으로 갈 좌표를 얻었습니다.")
+                ("ending_a", "엔딩 A: 푸른 행성의 인도자", "물로 뒤덮인 신비로운 푸른 행성에 무사히 도달하였습니다."),
+                ("ending_b", "엔딩 B: 붉은 행성의 개척자", "광물이 풍부한 척박한 붉은 행성에 착륙하였습니다."),
+                ("ending_c", "엔딩 C: 제2의 지구", "온화한 대기를 가진 아름다운 지구형 행성에 안착하였습니다.")
             ]
             
             box_w = int(panel_w * 0.43)

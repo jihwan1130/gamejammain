@@ -3,10 +3,9 @@ import sys
 import os
 import random
 
-class Day7Manager:
+class Day9Manager:
     def __init__(self):
         self.bg_img = None
-        self.space4_bg = None
         try:
             bg_path = os.path.join("assets", "main.png")
             if os.path.exists(bg_path):
@@ -16,36 +15,6 @@ class Day7Manager:
                 print(f"경고: {bg_path} 파일이 존재하지 않습니다.")
         except Exception as e:
             print(f"main.png 로드 실패: {e}")
-            
-        try:
-            bg_path = os.path.join("assets", "space4.png")
-            if not os.path.exists(bg_path):
-                bg_path = os.path.join("assets", "main.png")
-            if os.path.exists(bg_path):
-                raw_bg = pygame.image.load(bg_path).convert()
-                self.space4_bg = pygame.transform.scale(raw_bg, (1000, 700))
-            else:
-                print(f"경고: {bg_path} 파일이 존재하지 않습니다.")
-        except Exception as e:
-            print(f"space4.png 로드 실패: {e}")
-            
-        self.planets = {}
-        for name in ["red2", "blue2", "earth2"]:
-            try:
-                img_path = os.path.join("assets", f"{name}.png")
-                if os.path.exists(img_path):
-                    raw = pygame.image.load(img_path).convert_alpha()
-                    self.planets[name] = pygame.transform.scale(raw, (180, 180))
-                else:
-                    print(f"경고: {img_path} 파일이 존재하지 않습니다.")
-            except Exception as e:
-                print(f"{name}.png 로드 실패: {e}")
-                
-        self.planet_rects = {
-            "red2": pygame.Rect(160, 260, 180, 180),
-            "blue2": pygame.Rect(410, 260, 180, 180),
-            "earth2": pygame.Rect(660, 260, 180, 180)
-        }
             
         self.init_fonts()
         self.reset()
@@ -64,26 +33,6 @@ class Day7Manager:
         self.font_title = get_sys_font(korean_fonts, 26, bold=True)
         self.font_body = get_sys_font(korean_fonts, 20, bold=True)
         self.font_btn = get_sys_font(korean_fonts, 18, bold=True)
-        
-    def wrap_text_lines(self, lines, font, max_width):
-        wrapped_lines = []
-        for line in lines:
-            if line.startswith("---"):
-                wrapped_lines.append(line)
-                continue
-                
-            current = ""
-            for char in line:
-                test = current + char
-                if font.size(test)[0] <= max_width:
-                    current = test
-                else:
-                    if current:
-                        wrapped_lines.append(current)
-                    current = char
-            if current:
-                wrapped_lines.append(current)
-        return wrapped_lines
         
     def get_main_ref(self):
         settings = getattr(self, 'settings', None)
@@ -112,21 +61,25 @@ class Day7Manager:
         return True
 
     def reset(self):
-        self.state = "START_WAIT" # START_WAIT, GLITCH_BG, WARNING_TOAST, GAMEPLAY
-        self.start_ticks = pygame.time.get_ticks()
-        self.glitch_entered_ticks = 0
-        
-        # 타이머 트래킹용 변수
+        self.state = "INTRO_TEXT" # INTRO_TEXT, NAVIGATION, GLITCH_BG, WARNING_TOAST, PEACEFUL_TOAST
         self.navigation_start_ticks = 0
         self.check_count = 0
         self.incident_triggered = False
         
-        self.comments = []
-        self.displayed_lines = []
+        self.comments = [
+            "9일차 항해를 시작했습니다.",
+            "우주선에서 발생하는 문제를 해결하고, 무사히 목적지까지 도달해주세요.",
+            "",
+            "▶ [ SPACE ] 키를 눌러 계속 진행하십시오."
+        ]
         
         self.typewriter_index = 0
         self.char_index = 0
         self.last_char_ticks = pygame.time.get_ticks()
+        self.displayed_lines = []
+        
+        # 타이머 트래킹용 변수
+        self.glitch_entered_ticks = 0
         
         # 타이핑 사운드 (key2.mp3) 로드
         self.type_sound = None
@@ -151,7 +104,7 @@ class Day7Manager:
         except Exception as e:
             print(f"글리치 사운드 로드 실패: {e}")
             
-        # 비상 화재 알림음 (8beep.MP3) 로드
+        # 비상 알림음 (8beep.MP3) 로드
         self.alarm_sound = None
         try:
             sound_path = os.path.join("assets", "8beep.MP3")
@@ -162,10 +115,10 @@ class Day7Manager:
         except Exception as e:
             print(f"8beep.MP3 사운드 로드 실패: {e}")
             
-        # 이번 라운드에 배정된 게임 및 멘트 확인 (Day 7 고정 행성 발견 이벤트)
+        self.assigned_game = "LANDING_GAME"
         self.warning_lines = [
-            "항해 중에 3개의 행성을 발견했습니다.",
-            "3개의 행성 중에 하나를 선택해주세요."
+            "우주선이 착륙을 준비합니다.",
+            "역추진 장치를 가동하여 우주선의 속도 늦춰주세요."
         ]
 
     def update_typewriter(self, logs):
@@ -252,21 +205,63 @@ class Day7Manager:
     def start_assigned_game(self):
         self.stop_all_sounds()
         self.get_main_ref()
+        
+        settings = getattr(self, 'settings', None)
         play_sfx = getattr(self, 'play_sfx', None)
-        if play_sfx:
+        stage_mappings = getattr(self, 'stage_mappings', None)
+        play_music_track = getattr(self, 'play_music_track', None)
+        
+        # 1. 프레임워크 상에서 실행
+        if settings and play_sfx and stage_mappings:
             try:
                 play_sfx("sfx_click")
-            except:
-                pass
-        self.state = "GAMEPLAY"
+                settings.state = self.assigned_game
+                active_game = stage_mappings.get(self.assigned_game)
+                if active_game:
+                    active_game.reset()
+                    
+                    # 음악 재생
+                    if play_music_track:
+                        minigame_bgm = getattr(self, 'MINIGAME_MUSIC_PATH', getattr(sys.modules.get('main') or sys.modules.get('__main__'), 'MINIGAME_MUSIC_PATH', None))
+                        if minigame_bgm:
+                            try:
+                                play_music_track(minigame_bgm, fade_ms=0)
+                            except Exception as e:
+                                print(f"음악 재생 실패: {e}")
+                return
+            except Exception as e:
+                print(f"프레임워크 상태 전환 실패: {e}")
+
+        # 2. day9.py 단독 실행 시 stage_9_landing.py를 서브프로세스로 직접 실행
+        try:
+            import subprocess
+            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_9_landing.py")
+            if not os.path.exists(script_path):
+                script_path = "stage_9_landing.py"
+                
+            if os.path.exists(script_path):
+                subprocess.Popen([sys.executable, script_path])
+                pygame.quit()
+                sys.exit()
+            else:
+                print(f"파일을 찾을 수 없습니다: {script_path}")
+        except Exception as e:
+            print(f"직접 실행 실패: {e}")
 
     def update(self):
-        if self.state == "START_WAIT":
+        if self.state == "INTRO_TEXT":
+            self.update_typewriter(self.comments)
+        elif self.state == "NAVIGATION":
             now = pygame.time.get_ticks()
-            elapsed = (now - self.start_ticks) / 1000.0
-            if elapsed >= 3.0:
+            elapsed = (now - self.navigation_start_ticks) / 1000.0
+            
+            # 5초 도달 시 100% 확률로 고정 이벤트 발생
+            expected_checks = int(elapsed // 5.0)
+            if expected_checks > self.check_count and self.check_count < 1:
+                self.check_count = expected_checks
+                self.incident_triggered = True
                 self.state = "GLITCH_BG"
-                self.glitch_entered_ticks = now
+                self.glitch_entered_ticks = pygame.time.get_ticks()
                 if self.glitch_sound:
                     try:
                         self.get_main_ref()
@@ -283,10 +278,15 @@ class Day7Manager:
                         play_sfx("sfx_crash")
                 except:
                     pass
+            
+            if not self.incident_triggered and elapsed >= 20.0:
+                self.state = "PEACEFUL_TOAST"
+                self.stop_all_sounds()
+                
         elif self.state == "GLITCH_BG":
-            # 1.5초(1500ms) 대기 후 경고 창(WARNING_TOAST)으로 자동 변환
+            # 4초(4000ms) 대기 후 경고 창(WARNING_TOAST)으로 자동 변환
             now = pygame.time.get_ticks()
-            if now - self.glitch_entered_ticks >= 1500:
+            if now - self.glitch_entered_ticks >= 4000:
                 if self.glitch_sound:
                     try:
                         self.glitch_sound.stop()
@@ -377,17 +377,6 @@ class Day7Manager:
                     settings = getattr(self, 'settings', None)
                     if settings:
                         settings.campaign_next_requested = True
-            elif self.state == "PLANET_SELECTED_TOAST":
-                if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
-                    self.stop_all_sounds()
-                    if play_sfx:
-                        try:
-                            play_sfx("sfx_click")
-                        except:
-                            pass
-                    settings = getattr(self, 'settings', None)
-                    if settings:
-                        settings.campaign_next_requested = True
                     
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.state == "WARNING_TOAST":
@@ -429,53 +418,6 @@ class Day7Manager:
                     settings = getattr(self, 'settings', None)
                     if settings:
                         settings.campaign_next_requested = True
-            elif self.state == "GAMEPLAY":
-                mx, my = event.pos
-                try:
-                    settings = getattr(self, 'settings', None)
-                    if settings:
-                        vmx = int(mx * 1000 / settings.width)
-                        vmy = int(my * 700 / settings.height)
-                    else:
-                        vmx, vmy = mx, my
-                except:
-                    vmx, vmy = mx, my
-                    
-                for name, rect in self.planet_rects.items():
-                    if rect.collidepoint(vmx, vmy):
-                        if play_sfx:
-                            try:
-                                play_sfx("sfx_click")
-                            except:
-                                pass
-                        settings = getattr(self, 'settings', None)
-                        if settings:
-                            settings.selected_planet = name
-                        self.state = "PLANET_SELECTED_TOAST"
-                        break
-            elif self.state == "PLANET_SELECTED_TOAST":
-                mx, my = event.pos
-                try:
-                    settings = getattr(self, 'settings', None)
-                    if settings:
-                        vmx = int(mx * 1000 / settings.width)
-                        vmy = int(my * 700 / settings.height)
-                    else:
-                        vmx, vmy = mx, my
-                except:
-                    vmx, vmy = mx, my
-                    
-                btn_rect = pygame.Rect(400, 410, 200, 50)
-                if btn_rect.collidepoint(vmx, vmy):
-                    self.stop_all_sounds()
-                    if play_sfx:
-                        try:
-                            play_sfx("sfx_click")
-                        except:
-                            pass
-                    settings = getattr(self, 'settings', None)
-                    if settings:
-                        settings.campaign_next_requested = True
 
     def draw(self, surface):
         self.get_main_ref()
@@ -483,10 +425,8 @@ class Day7Manager:
         
         virtual_surf = pygame.Surface((1000, 700))
         
-        # GAMEPLAY 상태에서는 space4.png를, 그 외에는 main.png를 배경으로 사용
-        current_bg = self.space4_bg if (self.state == "GAMEPLAY" and self.space4_bg) else self.bg_img
-        if current_bg:
-            virtual_surf.blit(current_bg, (0, 0))
+        if self.bg_img:
+            virtual_surf.blit(self.bg_img, (0, 0))
         else:
             virtual_surf.fill((10, 10, 15))
             
@@ -598,14 +538,14 @@ class Day7Manager:
             box_y = (700 - box_h) // 2
             
             toast_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-            pygame.draw.rect(toast_surf, (10, 15, 30, 235), (0, 0, box_w, box_h), border_radius=16)
+            pygame.draw.rect(toast_surf, (20, 4, 4, 235), (0, 0, box_w, box_h), border_radius=16)
             
-            pygame.draw.rect(toast_surf, (0, 180, 255), (0, 0, box_w, box_h), 3, border_radius=16)
-            pygame.draw.rect(toast_surf, (100, 220, 255), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
+            pygame.draw.rect(toast_surf, (255, 50, 40), (0, 0, box_w, box_h), 3, border_radius=16)
+            pygame.draw.rect(toast_surf, (255, 120, 30), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
             virtual_surf.blit(toast_surf, (box_x, box_y))
             
-            header_str = "🪐 행성 발견 🪐"
-            header_surf = self.font_title.render(header_str, True, (100, 220, 255))
+            header_str = "🚨 위험 상황 발생 🚨"
+            header_surf = self.font_title.render(header_str, True, (255, 80, 60))
             virtual_surf.blit(header_surf, (500 - header_surf.get_width() // 2, box_y + 35))
             
             line1 = self.warning_lines[0]
@@ -633,9 +573,9 @@ class Day7Manager:
                 return y
                 
             y_offset = box_y + 100
-            y_offset = draw_wrapped_text(virtual_surf, line1, self.font_body, (220, 240, 255), 500, y_offset, box_w - 60)
+            y_offset = draw_wrapped_text(virtual_surf, line1, self.font_body, (255, 220, 210), 500, y_offset, box_w - 60)
             y_offset += 8
-            draw_wrapped_text(virtual_surf, line2, self.font_body, (220, 240, 255), 500, y_offset, box_w - 60)
+            draw_wrapped_text(virtual_surf, line2, self.font_body, (255, 220, 210), 500, y_offset, box_w - 60)
             
             mx, my = pygame.mouse.get_pos()
             try:
@@ -651,117 +591,15 @@ class Day7Manager:
             is_hovered = btn_rect.collidepoint(vmx, vmy)
             
             if is_hovered:
-                pygame.draw.rect(virtual_surf, (0, 150, 255), btn_rect, border_radius=8)
+                pygame.draw.rect(virtual_surf, (255, 60, 40), btn_rect, border_radius=8)
                 pygame.draw.rect(virtual_surf, (255, 255, 255), btn_rect, 2, border_radius=8)
                 btn_txt_color = (255, 255, 255)
             else:
-                pygame.draw.rect(virtual_surf, (10, 20, 40), btn_rect, border_radius=8)
-                pygame.draw.rect(virtual_surf, (0, 180, 255), btn_rect, 2, border_radius=8)
-                btn_txt_color = (150, 220, 255)
+                pygame.draw.rect(virtual_surf, (40, 10, 10), btn_rect, border_radius=8)
+                pygame.draw.rect(virtual_surf, (255, 80, 60), btn_rect, 2, border_radius=8)
+                btn_txt_color = (255, 160, 140)
                 
-            btn_txt = self.font_btn.render("행성 선택", True, btn_txt_color)
-            virtual_surf.blit(btn_txt, (500 - btn_txt.get_width() // 2, 410 + (50 - btn_txt.get_height()) // 2))
-
-        elif self.state == "GAMEPLAY":
-            # space4_bg 위에 약간의 반투명 어두운 오버레이를 올려서 글자가 잘 보이게 함
-            overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 80)) # 불투명도 약 30%
-            virtual_surf.blit(overlay, (0, 0))
-            
-            # 타이틀
-            title = self.font_title.render("■ PLANET EXPLORATION - DECISION PROTOCOL ■", True, (0, 220, 100))
-            virtual_surf.blit(title, (500 - title.get_width() // 2, 50))
-            
-            # 안내 문구
-            guide_txt = self.font_body.render("탐사할 행성을 하나 선택해 주십시오.", True, (200, 220, 255))
-            virtual_surf.blit(guide_txt, (500 - guide_txt.get_width() // 2, 120))
-            
-            mx, my = pygame.mouse.get_pos()
-            try:
-                if settings:
-                    vmx = int(mx * 1000 / settings.width)
-                    vmy = int(my * 700 / settings.height)
-                else:
-                    vmx, vmy = mx, my
-            except:
-                vmx, vmy = mx, my
-
-            names_kr = {"red2": "붉은 행성 (Red)", "blue2": "푸른 행성 (Blue)", "earth2": "지구형 행성 (Earth)"}
-            
-            for name, rect in self.planet_rects.items():
-                if name in self.planets:
-                    is_hover = rect.collidepoint(vmx, vmy)
-                    if is_hover:
-                        # Hover 효과: 약간 확대 및 Glow 효과
-                        scaled_size = (196, 196)
-                        offset = (scaled_size[0] - rect.width) // 2
-                        draw_rect = pygame.Rect(rect.x - offset, rect.y - offset, scaled_size[0], scaled_size[1])
-                        img = pygame.transform.scale(self.planets[name], scaled_size)
-                        
-                        # 빛(glow) 서피스
-                        glow = pygame.Surface((scaled_size[0] + 40, scaled_size[1] + 40), pygame.SRCALPHA)
-                        pygame.draw.circle(glow, (0, 180, 255, 45), (glow.get_width()//2, glow.get_height()//2), (scaled_size[0]//2) + 12)
-                        pygame.draw.circle(glow, (0, 180, 255, 90), (glow.get_width()//2, glow.get_height()//2), (scaled_size[0]//2) + 4, 2)
-                        virtual_surf.blit(glow, (draw_rect.x - 20, draw_rect.y - 20))
-                        
-                        virtual_surf.blit(img, draw_rect.topleft)
-                        label_color = (0, 255, 150)
-                    else:
-                        virtual_surf.blit(self.planets[name], rect.topleft)
-                        label_color = (200, 200, 200)
-                    
-                    # 각 행성 아래에 텍스트 이름 렌더링
-                    lbl = self.font_btn.render(names_kr[name], True, label_color)
-                    virtual_surf.blit(lbl, (rect.centerx - lbl.get_width() // 2, rect.bottom + 15))
-
-        elif self.state == "PLANET_SELECTED_TOAST":
-            box_w = 700
-            box_h = 280
-            box_x = (1000 - box_w) // 2
-            box_y = (700 - box_h) // 2
-            
-            toast_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-            pygame.draw.rect(toast_surf, (10, 15, 30, 235), (0, 0, box_w, box_h), border_radius=16)
-            pygame.draw.rect(toast_surf, (0, 180, 255), (0, 0, box_w, box_h), 3, border_radius=16)
-            pygame.draw.rect(toast_surf, (100, 220, 255), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
-            virtual_surf.blit(toast_surf, (box_x, box_y))
-            
-            header_str = "🪐 행성 선택 완료 🪐"
-            header_surf = self.font_title.render(header_str, True, (100, 220, 255))
-            virtual_surf.blit(header_surf, (500 - header_surf.get_width() // 2, box_y + 35))
-            
-            line1 = "행성이 선택되셨습니다."
-            line2 = "다음 날로 넘어갑니다."
-            
-            s_surf1 = self.font_body.render(line1, True, (245, 245, 245))
-            virtual_surf.blit(s_surf1, (500 - s_surf1.get_width() // 2, box_y + 105))
-            
-            s_surf2 = self.font_body.render(line2, True, (245, 245, 245))
-            virtual_surf.blit(s_surf2, (500 - s_surf2.get_width() // 2, box_y + 145))
-            
-            mx, my = pygame.mouse.get_pos()
-            try:
-                if settings:
-                    vmx = int(mx * 1000 / settings.width)
-                    vmy = int(my * 700 / settings.height)
-                else:
-                    vmx, vmy = mx, my
-            except:
-                vmx, vmy = mx, my
-                
-            btn_rect = pygame.Rect(400, 410, 200, 50)
-            is_hovered = btn_rect.collidepoint(vmx, vmy)
-            
-            if is_hovered:
-                pygame.draw.rect(virtual_surf, (0, 150, 255), btn_rect, border_radius=8)
-                pygame.draw.rect(virtual_surf, (255, 255, 255), btn_rect, 2, border_radius=8)
-                btn_txt_color = (255, 255, 255)
-            else:
-                pygame.draw.rect(virtual_surf, (10, 20, 40), btn_rect, border_radius=8)
-                pygame.draw.rect(virtual_surf, (0, 180, 255), btn_rect, 2, border_radius=8)
-                btn_txt_color = (150, 220, 255)
-                
-            btn_txt = self.font_btn.render("▶ 다음 날로", True, btn_txt_color)
+            btn_txt = self.font_btn.render("시작하기", True, btn_txt_color)
             virtual_surf.blit(btn_txt, (500 - btn_txt.get_width() // 2, 410 + (50 - btn_txt.get_height()) // 2))
 
         scaled_surf = pygame.transform.scale(virtual_surf, surface.get_size())
@@ -772,7 +610,7 @@ if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((1000, 700))
     clock = pygame.time.Clock()
-    game = Day7Manager()
+    game = Day9Manager()
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

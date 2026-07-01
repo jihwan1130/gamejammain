@@ -6,6 +6,16 @@ import os
 
 from visual_effects import draw_terminal_hud
 
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
+
 class CrankLandingGame:
     def __init__(self):
         # 색상 정의
