@@ -117,10 +117,10 @@ class Day8Manager:
         except Exception as e:
             print(f"8beep.MP3 사운드 로드 실패: {e}")
             
-        self.assigned_game = "CRANK_LANDING_GAME"
+        self.assigned_game = "GRID_GAME"
         self.warning_lines = [
-            "우주선이 방향을 잃고 있습니다.",
-            "모든 그리드를 12시 방향에 맞춰 향로를 조정해 주세요."
+            "우주선 전력 계통망이 파손되었습니다.",
+            "전원 노드를 드래그하여 모든 그리드에 전력을 공급하세요."
         ]
 
     def update_typewriter(self, logs):
@@ -220,12 +220,12 @@ class Day8Manager:
             except Exception as e:
                 print(f"프레임워크 상태 전환 실패: {e}")
 
-        # 2. day8.py 단독 실행 시 spin.py를 서브프로세스로 직접 실행
+        # 2. day8.py 단독 실행 시 stage_8_grid.py를 서브프로세스로 직접 실행
         try:
             import subprocess
-            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "spin.py")
+            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_8_grid.py")
             if not os.path.exists(script_path):
-                script_path = "spin.py"
+                script_path = "stage_8_grid.py"
                 
             if os.path.exists(script_path):
                 subprocess.Popen([sys.executable, script_path])
