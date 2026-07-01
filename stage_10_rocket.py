@@ -24,6 +24,7 @@ class MeteorGame:
         self.bg_img = None
         self.meteor_frames = []
         self.rocket_frames = []
+        self.crash_sfx = None
         self.load_assets()
         self.reset()
         
@@ -38,6 +39,13 @@ class MeteorGame:
         self.rocket_frames = load_gif_frames(os.path.join("assets", "rocket2.gif"))
         if not self.rocket_frames:
             print("로켓 GIF 프레임을 로드할 수 없습니다.")
+            
+        try:
+            self.crash_sfx = pygame.mixer.Sound(os.path.join("assets", "crash2.MP3"))
+            from main import settings
+            self.crash_sfx.set_volume(settings.volume * 0.7)
+        except Exception as e:
+            print(f"충돌 효과음을 로드할 수 없습니다: {e}")
 
     def reset(self):
         from main import settings
@@ -154,9 +162,9 @@ class MeteorGame:
                                 "life": random.randint(15, 30),
                                 "color": (255, 120, 30)
                             })
-                        if click_sfx:
-                            click_sfx.set_volume(settings.volume)
-                            click_sfx.play()
+                        if self.crash_sfx:
+                            self.crash_sfx.set_volume(settings.volume * 0.7)
+                            self.crash_sfx.play()
                         if self.hp <= 0:
                             self.state = "LOST"
                             try:

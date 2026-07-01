@@ -38,6 +38,15 @@ class FireGame:
         except Exception as e:
             print(f"fire.gif 로드 실패: {e}")
 
+        self.water_sfx = None
+        try:
+            import os
+            water_sfx_path = os.path.join("assets", "watersound.MP3")
+            if os.path.exists(water_sfx_path):
+                self.water_sfx = pygame.mixer.Sound(water_sfx_path)
+        except Exception as e:
+            print(f"watersound.MP3 로드 실패: {e}")
+
         self.reset()
         
     def reset(self):
@@ -45,22 +54,20 @@ class FireGame:
         self.start_ticks = pygame.time.get_ticks()
         self.last_update_ticks = self.start_ticks
         self.elapsed_time = 0
-        self.limit_time = 20.0
+        self.limit_time = 15.0
         self.state = "COUNTDOWN" # "COUNTDOWN", "PLAYING", "SUCCESS", "FAIL"
-        self.spawned_count = 5
+        self.spawned_count = 6
         self.sfx_timer = 0.0
-        for _ in range(5):
+        for _ in range(6):
             self.spawn_fire()
         
     def spawn_fire(self):
-        # Pick a random size choice: L (9 clicks), M (5 clicks), S (3 clicks)
-        size_choice = random.choice(["L", "M", "S"])
+        # Pick a random size choice: L (9 clicks), M (5 clicks)
+        size_choice = random.choice(["L", "M"])
         if size_choice == "L":
             hp = 9.0
-        elif size_choice == "M":
-            hp = 5.0
         else:
-            hp = 3.0
+            hp = 5.0
             
         # Pick a random location within safe boundaries of 1000x700
         self.fires.append({
@@ -106,7 +113,12 @@ class FireGame:
                 if hit_any:
                     self.sfx_timer -= dt
                     if self.sfx_timer <= 0:
-                        play_sfx("sfx_click")
+                        if self.water_sfx:
+                            from main import settings
+                            self.water_sfx.set_volume(settings.volume * 0.8)  # 20% volume reduction
+                            self.water_sfx.play()
+                        else:
+                            play_sfx("sfx_click")
                         self.sfx_timer = 0.15
                 else:
                     self.sfx_timer = 0.0
@@ -117,9 +129,8 @@ class FireGame:
             if self.elapsed_time > 0.5 and len(self.fires) == 0 and self.spawned_count > 0:
                 self.state = "SUCCESS"
             elif self.elapsed_time >= self.limit_time:
-                # Timer ended! Evaluate success/fail based on remaining clicks (HP)
-                total_clicks = sum(f["hp"] for f in self.fires)
-                if total_clicks >= 9:
+                # Timer ended! Must extinguish all fires to clear, otherwise it's a FAIL.
+                if len(self.fires) > 0:
                     self.state = "FAIL"
                     try:
                         from main import play_music_track, GAMEOVER_MUSIC_PATH
@@ -192,31 +203,6 @@ class FireGame:
                 virtual_surf.blit(fire_surf, rect)
             else:
                 pygame.draw.circle(virtual_surf, (220, 60, 40), (f["x"], f["y"]), fallback_r)
-            
-        # Draw HUD (Custom monitor style with progress bar)
-        color = (235, 130, 40)
-        # 외부 프레임 테두리
-        pygame.draw.rect(virtual_surf, color, (10, 10, 980, 680), 2)
-        pygame.draw.rect(virtual_surf, color, (15, 15, 970, 670), 1)
-        
-        # 제한 시간 프로그레스 바 (stage_10_rocket 스타일)
-        time_ratio = max(0.0, (self.limit_time - self.elapsed_time) / self.limit_time)
-        bar_max_w = 400
-        bar_h = 16
-        bar_x = 30
-        bar_y = 25
-        pygame.draw.rect(virtual_surf, color, (bar_x, bar_y, bar_max_w, bar_h), 2)
-        fill_w = int(bar_max_w * time_ratio)
-        if fill_w > 0:
-            bar_color = (100, 255, 100) if time_ratio > 0.5 else ((255, 120, 30) if time_ratio > 0.2 else (255, 60, 40))
-            pygame.draw.rect(virtual_surf, bar_color, (bar_x + 2, bar_y + 2, fill_w - 4, bar_h - 4))
-            
-        # 우측 상단 시스템 얼럿 타이틀 정보
-        font = pygame.font.SysFont("malgungothic", 20, bold=True)
-        title_text = font.render("■ SYSTEM ALERT: FIRE SUPPRESSION ■", True, color)
-        virtual_surf.blit(title_text, (1000 - title_text.get_width() - 30, 22))
-        
-        
         
         # Countdown overlay rendering
         if self.state == "COUNTDOWN":
@@ -234,7 +220,7 @@ class FireGame:
             box_w, box_h = 300, 120
             box_rect = pygame.Rect(500 - box_w//2, 350 - box_h//2, box_w, box_h)
             pygame.draw.rect(virtual_surf, (15, 8, 3, 220), box_rect)
-            pygame.draw.rect(virtual_surf, color, box_rect, 2)
+            pygame.draw.rect(virtual_surf, (235, 130, 40), box_rect, 2)
             
             virtual_surf.blit(num_surf, num_rect)
             
@@ -254,6 +240,42 @@ class FireGame:
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
+        
+        # Draw HUD directly on screen surface for perfect resolution and scaling (Matching stage_10_rocket style)
+        from main import settings
+        
+        # 1. Draw game boundaries
+        pygame.draw.rect(surface, CRT_GREEN, (15, 45, settings.width - 30, settings.height - 85), 2)
+        
+        # 2. Draw progress bar
+        time_ratio = max(0.0, (self.limit_time - self.elapsed_time) / self.limit_time)
+        bar_max_w = settings.width // 2 - 60
+        bar_h = 16
+        bar_x = 30
+        bar_y = 22
+        pygame.draw.rect(surface, CRT_GREEN, (bar_x, bar_y, bar_max_w, bar_h), 2)
+        fill_w = int(bar_max_w * time_ratio)
+        if fill_w > 0:
+            bar_color = (100, 255, 100) if time_ratio > 0.5 else ((255, 120, 30) if time_ratio > 0.2 else (255, 60, 40))
+            pygame.draw.rect(surface, bar_color, (bar_x + 2, bar_y + 2, fill_w - 4, bar_h - 4))
+            
+        # 3. Draw HUD energy blocks and text
+        font_hud = get_scaled_font(16, is_korean=True)
+        fires_text = "FIRES: "
+        fires_lbl = font_hud.render(fires_text, True, CRT_GREEN)
+        
+        # Match layout of stage_10_rocket
+        start_x = settings.width - 200
+        fires_lbl_x = start_x - fires_lbl.get_width() - 10
+        fires_lbl_y = 20
+        surface.blit(fires_lbl, (fires_lbl_x, fires_lbl_y))
+        
+        for i in range(6):
+            bx = start_x + i * 22
+            by = 22
+            block_color = (255, 120, 30) if i < len(self.fires) else (40, 20, 10)
+            pygame.draw.rect(surface, block_color, (bx, by, 16, 12))
+            pygame.draw.rect(surface, CRT_GREEN, (bx, by, 16, 12), 1)
 
 if __name__ == "__main__":
     import sys

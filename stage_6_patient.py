@@ -44,12 +44,12 @@ class PathogenQuarantineGame:
         
         self.bg_img = None
         try:
-            bg_path = os.path.join("assets", "plantspace.jpg")
+            bg_path = os.path.join("assets", "doctorhouse.png")
             if os.path.exists(bg_path):
                 raw_bg = pygame.image.load(bg_path).convert()
                 self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
         except Exception as e:
-            print(f"plantspace.jpg 로드 실패: {e}")
+            print(f"doctorhouse.png 로드 실패: {e}")
             
         self.reset()
         

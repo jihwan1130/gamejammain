@@ -7,7 +7,7 @@ import random
 import math
 import json
 from stage_10_rocket import MeteorGame
-from resources_mini import ResourcesGame
+from get import ResourcesGame
 from stage_1_fire import FireGame
 from stage_2_robot import RogueRobotGame
 from stage_2_gravity import GravityHullRepairGame
@@ -172,6 +172,8 @@ def play_music_track(path, fade_ms=0, loops=-1):
     try:
         print(f"[play_music_track] Request to play: {path} (Current: {settings.current_music_path})")
         vol = settings.volume * 0.8 if path in [MINIGAME_MUSIC_PATH, SYSTEM_BGM_PATH] else settings.volume
+        if settings.state == "METEOR_GAME":
+            vol *= 0.9
         if settings.current_music_path == path:
             print("[play_music_track] Already playing this track. Unpausing.")
             pygame.mixer.music.unpause()
@@ -204,22 +206,29 @@ try:
 except Exception as e:
     print(f"배경음악을 로드할 수 없습니다: {e}")
 
-SFX_PATH = os.path.join("assets", "hackingsound3.MP3")
+SFX_PATH = os.path.join("assets", "clickclick.MP3")
 KEYBOARD_SFX_PATH = os.path.join("assets", "keyboardsound.MP3")
 WALK2_SFX_PATH = os.path.join("assets", "walksound2.MP3")
 END_SFX_PATH = os.path.join("assets", "endsound.MP3")
 KEYBOARD3_SFX_PATH = os.path.join("assets", "keyboard33.MP3")
 CHANGE_SFX_PATH = os.path.join("assets", "change.MP3")
+CRASH_SFX_PATH = os.path.join("assets", "crash2.MP3")
 click_sfx = None
 keyboard_sfx = None
 walk2_sfx = None
 end_sfx = None
 keyboard3_sfx = None
 change_sfx = None
+crash_sfx = None
 try:
     click_sfx = pygame.mixer.Sound(SFX_PATH)
 except Exception as e:
     print(f"효과음을 로드할 수 없습니다: {e}")
+try:
+    crash_sfx = pygame.mixer.Sound(CRASH_SFX_PATH)
+    crash_sfx.set_volume(settings.volume * 0.7)
+except Exception as e:
+    print(f"충돌 효과음을 로드할 수 없습니다: {e}")
 try:
     keyboard_sfx = pygame.mixer.Sound(KEYBOARD_SFX_PATH)
     keyboard_sfx.set_volume(settings.volume)
@@ -266,6 +275,9 @@ def play_sfx(sfx_name):
         elif sfx_name == "sfx_change" and change_sfx:
             change_sfx.set_volume(settings.volume)
             change_sfx.play()
+        elif sfx_name == "sfx_crash" and crash_sfx:
+            crash_sfx.set_volume(settings.volume * 0.7)
+            crash_sfx.play()
     except Exception as e:
         print(f"SFX 재생 실패 ({sfx_name}): {e}")
 
@@ -800,6 +812,8 @@ def set_volume(val):
     settings.volume = val
     try:
         music_vol = val * 0.8 if settings.current_music_path in [MINIGAME_MUSIC_PATH, SYSTEM_BGM_PATH] else val
+        if settings.state == "METEOR_GAME":
+            music_vol *= 0.9
         pygame.mixer.music.set_volume(music_vol)
     except:
         pass
@@ -811,6 +825,11 @@ def set_volume(val):
     try:
         if keyboard_sfx:
             keyboard_sfx.set_volume(val)
+    except:
+        pass
+    try:
+        if crash_sfx:
+            crash_sfx.set_volume(val * 0.7)
     except:
         pass
     try:
@@ -880,9 +899,9 @@ minigames_buttons = [
 ]
 
 GAMES_LIST = [
+    ("FIRE SUPPRESSION", "원자로 화재 진압", ["원자로 구역 화재 발생!", "마우스 클릭으로 물을", "분사하여 불을 끕니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("RESOURCE HARVEST", "우주선 탑승 자원 수집", ["우주선 내외를 돌며", "산소/전기/정신력 및", "크루들을 수집합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("METEOR SHOWER", "운석 소나기", ["안전 보호막이 손상된", "구역에서 쏟아지는", "운석을 피합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
-    ("FIRE SUPPRESSION", "원자로 화재 진압", ["원자로 구역 화재 발생!", "마우스 클릭으로 물을", "분사하여 불을 끕니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("ROGUE ROBOT SUPPRESSION", "폭주 로봇 진압", ["폭주하는 침투 로봇의", "약점을 저격하여", "구역을 방어합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("GRAVITY ANOMALY ESCAPE", "격벽 중력장 복구", ["화면에 무작위로 표시되는", "키를 신속히 눌러", "중력 변동을 제어합니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
     ("REACTOR REPAIR", "원자로 과열 냉각", ["A / D 키를 조작하여", "과부하된 원자로 코어를", "안전 구역에 유지시킵니다."], "[ 모듈 로드 완료 - 클릭하여 실행 ]"),
@@ -1086,7 +1105,7 @@ class MeteorGame:
                                 "life": random.randint(15, 30),
                                 "color": (255, 120, 30)
                             })
-                        play_sfx("sfx_click")
+                        play_sfx("sfx_crash")
                         if self.hp <= 0:
                             self.state = "LOST"
                             try:
@@ -1565,34 +1584,39 @@ def main():
                         go_to_minigames()
                     continue
                 elif settings.state in ["RESOURCE_GAME", "FIRE_GAME", "ROBOT_GAME", "GRAVITY_GAME", "OVERHEAT_GAME", "RIOT_GAME", "LIFE_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "GRID_GAME", "LANDING_GAME", "CREW_CALM_GAME", "CRANK_LANDING_GAME"]:
-                    if not settings.minigame_paused:
-                        settings.minigame_paused = True
-                        settings.minigame_pause_started_at = pygame.time.get_ticks()
-                        update_global_pause_buttons()
-                        play_sfx("sfx_end")
-                        pygame.mixer.music.pause() # Pause music!
-                        if settings.state == "RIOT_GAME":
-                            try:
-                                pygame.key.stop_text_input()
-                            except:
-                                pass
+                    active_game = stage_mappings.get(settings.state)
+                    if active_game and hasattr(active_game, 'state') and active_game.state in ["SUCCESS", "FAIL", "WON", "LOST"]:
+                        # Game is finished, do not pause. Fall through to allow K_ESCAPE to return to menu
+                        pass
                     else:
-                        settings.minigame_paused = False
-                        pause_duration = pygame.time.get_ticks() - settings.minigame_pause_started_at
-                        active_game = stage_mappings.get(settings.state)
-                        if active_game:
-                            active_game.start_ticks += pause_duration
-                        elif settings.state == "RESOURCE_GAME":
-                            resources_game.farm_start_time += pause_duration
-                            resources_game.minigame_start_time += pause_duration
-                        play_sfx("sfx_click")
-                        pygame.mixer.music.unpause() # Unpause music!
-                        if settings.state == "RIOT_GAME":
-                            try:
-                                pygame.key.start_text_input()
-                            except:
-                                pass
-                    continue
+                        if not settings.minigame_paused:
+                            settings.minigame_paused = True
+                            settings.minigame_pause_started_at = pygame.time.get_ticks()
+                            update_global_pause_buttons()
+                            play_sfx("sfx_end")
+                            pygame.mixer.music.pause() # Pause music!
+                            if settings.state == "RIOT_GAME":
+                                try:
+                                    pygame.key.stop_text_input()
+                                except:
+                                    pass
+                            continue
+                        else:
+                            settings.minigame_paused = False
+                            pause_duration = pygame.time.get_ticks() - settings.minigame_pause_started_at
+                            if active_game:
+                                active_game.start_ticks += pause_duration
+                            elif settings.state == "RESOURCE_GAME":
+                                resources_game.farm_start_time += pause_duration
+                                resources_game.minigame_start_time += pause_duration
+                            play_sfx("sfx_click")
+                            pygame.mixer.music.unpause() # Unpause music!
+                            if settings.state == "RIOT_GAME":
+                                try:
+                                    pygame.key.start_text_input()
+                                except:
+                                    pass
+                            continue
                 elif settings.state == "MENU" and settings.view_mode == "SPACE":
                     settings.view_mode = "TRANSITION"
                     settings.transition_progress = 1.0
@@ -1712,6 +1736,29 @@ def main():
                     start_x = panel_x + int(panel_w * 0.06)
                     card_y = panel_y + int(panel_h * 0.20)
                     
+                    # Check if player clicked on one of the dot indicators
+                    num_games = len(GAMES_LIST)
+                    dot_y = int(settings.height * 0.69)
+                    gap_x = 24
+                    total_dots_w = (num_games - 1) * gap_x
+                    start_x_dots = (settings.width - total_dots_w) // 2
+                    
+                    clicked_dot = False
+                    for dot_i in range(num_games):
+                        dx = start_x_dots + dot_i * gap_x
+                        # Create a click boundary box around the dot
+                        dot_rect = pygame.Rect(dx - 12, dot_y - 12, 24, 24)
+                        if dot_rect.collidepoint(event.pos):
+                            # Set minigame index, clamping to valid range
+                            settings.minigame_index = min(dot_i, len(GAMES_LIST) - 3)
+                            settings.minigame_index = max(0, settings.minigame_index)
+                            play_sfx("sfx_change")
+                            clicked_dot = True
+                            break
+                    
+                    if clicked_dot:
+                        continue
+                    
                     for i in range(3):
                         game_idx = settings.minigame_index + i
                         if game_idx >= len(GAMES_LIST):
@@ -1720,9 +1767,9 @@ def main():
                         rect = pygame.Rect(cx, card_y, card_w, card_h)
                         if rect.collidepoint(event.pos):
                             game_mappings = {
-                                0: ("RESOURCE_GAME", resources_game),
-                                1: ("METEOR_GAME", meteor_game),
-                                2: ("FIRE_GAME", fire_game),
+                                0: ("FIRE_GAME", fire_game),
+                                1: ("RESOURCE_GAME", resources_game),
+                                2: ("METEOR_GAME", meteor_game),
                                 3: ("ROBOT_GAME", rogue_robot_game),
                                 4: ("GRAVITY_GAME", gravity_hull_game),
                                 5: ("OVERHEAT_GAME", core_thermal_game),
@@ -1780,7 +1827,7 @@ def main():
             meteor_game.update()
             if meteor_game.state == "LOST" and settings.current_music_path != GAMEOVER_MUSIC_PATH:
                 try:
-                    play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0)
+                    play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
                 except Exception as e:
                     print(f"게임오버 음악 재생 실패: {e}")
         elif settings.state == "RESOURCE_GAME":
@@ -1793,7 +1840,7 @@ def main():
                 game_inst.update()
                 if game_inst.state == "FAIL" and settings.current_music_path != GAMEOVER_MUSIC_PATH:
                     try:
-                        play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0)
+                        play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
                     except Exception as e:
                         print(f"게임오버 음악 재생 실패: {e}")
             
@@ -2161,6 +2208,26 @@ def main():
             # 화살표 버튼 그리기
             left_arrow_btn.draw(settings.screen, time_ms)
             right_arrow_btn.draw(settings.screen, time_ms)
+            
+            # Draw dot indicators (Matching current selection)
+            num_games = len(GAMES_LIST)
+            dot_y = int(settings.height * 0.69)
+            gap_x = 24
+            total_dots_w = (num_games - 1) * gap_x
+            start_x_dots = (settings.width - total_dots_w) // 2
+            
+            for dot_i in range(num_games):
+                dx = start_x_dots + dot_i * gap_x
+                # Check if this dot is currently visible in the 3-card window
+                is_visible = settings.minigame_index <= dot_i < settings.minigame_index + 3
+                if is_visible:
+                    # Draw a glowing green indicator circle
+                    pygame.draw.circle(settings.screen, (100, 255, 100), (dx, dot_y), 6)
+                    # Outer glow outline
+                    pygame.draw.circle(settings.screen, CRT_GREEN, (dx, dot_y), 9, 1)
+                else:
+                    # Draw a dim/inactive indicator circle
+                    pygame.draw.circle(settings.screen, (40, 70, 40), (dx, dot_y), 4)
             
             # 뒤로가기 버튼
             for btn in minigames_buttons:
