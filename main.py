@@ -23,7 +23,11 @@ from aim import CrewCalmGame
 from spin import CrankLandingGame
 from day0 import Day0Manager
 from day1 import Day1Manager
+from day2 import Day2Manager
+from day3 import Day3Manager
+from day4 import Day4Manager
 from day_5 import Day5Manager
+from day6 import Day6Manager
 
 
 
@@ -70,6 +74,16 @@ class GameSettings:
         self.global_pause_exit_rect = pygame.Rect(0, 0, 0, 0)
         self.semicolon_pressed_time = 0
         self.speed_cheat_active = False
+        
+        # 랜덤 Day (2, 3, 4, 6) 게임 배정 (중복 불가)
+        candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME"]
+        chosen = random.sample(candidates, 4)
+        self.random_day_games = {
+            "DAY_2": chosen[0],
+            "DAY_3": chosen[1],
+            "DAY_4": chosen[2],
+            "DAY_6": chosen[3]
+        }
         
     def setup_display(self):
         # 해상도 변경 및 전체화면 플래그 적용 시 호출
@@ -1494,11 +1508,21 @@ def main():
     crank_landing_game = CrankLandingGame()
     day_0_manager = Day0Manager()
     day_1_manager = Day1Manager()
+    day_2_manager = Day2Manager()
+    day_3_manager = Day3Manager()
+    day_4_manager = Day4Manager()
     day_5_manager = Day5Manager()
+    day_6_manager = Day6Manager()
     
     settings.resources_game = resources_game
-    settings.day_1_manager = day_1_manager
     settings.day_0_manager = day_0_manager
+    settings.day_1_manager = day_1_manager
+    settings.day_2_manager = day_2_manager
+    settings.day_3_manager = day_3_manager
+    settings.day_4_manager = day_4_manager
+    settings.day_5_manager = day_5_manager
+    settings.day_6_manager = day_6_manager
+    settings.fire_game = fire_game
 
     
     stage_mappings = {
@@ -1517,7 +1541,11 @@ def main():
         "CRANK_LANDING_GAME": crank_landing_game,
         "DAY_0": day_0_manager,
         "DAY_1": day_1_manager,
-        "DAY_5": day_5_manager
+        "DAY_2": day_2_manager,
+        "DAY_3": day_3_manager,
+        "DAY_4": day_4_manager,
+        "DAY_5": day_5_manager,
+        "DAY_6": day_6_manager,
     }
     
     # 드래그 줌 상태 변수
@@ -1904,6 +1932,18 @@ def main():
                             print(f"운석게임 음악 재생 실패: {e}")
             else:
                 if settings.state in stage_mappings:
+                    # 캠페인 모드에서 미니게임 성공 후 엔터 누르면 다음 날로 진행
+                    if (settings.is_campaign and 
+                        not settings.state.startswith("DAY_") and
+                        event.type == pygame.KEYDOWN and 
+                        event.key in [pygame.K_RETURN, pygame.K_KP_ENTER]):
+                        
+                        active_game = stage_mappings[settings.state]
+                        if active_game and hasattr(active_game, 'state') and active_game.state in ["SUCCESS", "WON"]:
+                            play_sfx("sfx_click")
+                            next_campaign_day()
+                            continue
+                            
                     stage_mappings[settings.state].handle_event(event)
         if settings.minigame_paused:
             pass

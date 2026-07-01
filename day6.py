@@ -3,13 +3,12 @@ import sys
 import os
 import random
 
-class Day1Manager:
+class Day6Manager:
     def __init__(self):
         self.bg_img = None
         try:
             bg_path = os.path.join("assets", "main.png")
             if os.path.exists(bg_path):
-                # 대형 이미지이므로 convert() 처리 후 1000x700 크기로 사전 스케일링
                 raw_bg = pygame.image.load(bg_path).convert()
                 self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
             else:
@@ -39,7 +38,7 @@ class Day1Manager:
         self.state = "INTRO_TEXT" # INTRO_TEXT, GLITCH_BG, WARNING_TOAST
         
         self.comments = [
-            "1일차 항해를 시작했습니다.",
+            "6일차 항해를 시작했습니다.",
             "우주선에서 발생하는 문제를 해결하고, 무사히 목적지까지 도달해주세요.",
             "",
             "▶ [ SPACE ] 키를 눌러 계속 진행하십시오."
@@ -87,6 +86,34 @@ class Day1Manager:
         except Exception as e:
             print(f"8beep.MP3 사운드 로드 실패: {e}")
             
+        # 이번 라운드에 배정된 랜덤 게임 및 멘트 확인
+        self.assigned_game = None
+        self.warning_lines = ["위험 상황이 발생했습니다.", "문제를 해결하십시오."]
+        
+        try:
+            from main import settings
+            if hasattr(settings, 'random_day_games') and "DAY_6" in settings.random_day_games:
+                self.assigned_game = settings.random_day_games["DAY_6"]
+        except Exception as e:
+            print(f"main settings 로드 실패 (단독 실행 예상): {e}")
+
+        # 만약 단독 실행 등으로 배정된 게임이 없다면 랜덤으로 하나 선택
+        if not self.assigned_game:
+            candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME"]
+            self.assigned_game = random.choice(candidates)
+
+        # 게임별 멘트 정의
+        game_toasts = {
+            "GRAVITY_GAME": ["중력장치 프로그램이 고장났습니다.", "서버를 복구하십시오."],
+            "OVERHEAT_GAME": ["원자력 온도 조절 장치가 고장나 우주선이 중심을 잃었습니다.", "원자로로 이동하여 이를 수리하십시오."],
+            "ROBOT_GAME": ["우주선 내 ai들이 고장나 시민들을 공격하기 시작했습니다.", "고장난 로봇들을 파괴하십시오."],
+            "RIOT_GAME": ["시민들이 장기간 과도한 긴장감에 시달려 폭동이 일어났습니다.", "시민들을 진정시키십시오."],
+            "NAV_GAME": ["항법 장치가 고장나 우주선이 방향을 찾을 수 없습니다.", "항법 장치를 보정하여, 우주선을 수리해주십시오."],
+            "ELECTRIC_GAME": ["에너지 장치가 고장났습니다.", "고압실에 들어가 이를 수리하십시오."],
+            "QUARANTINE_GAME": ["장시간의 비행 속에 승무원이 공황을 일으키기 시작했습니다.", "진정제를 투여하여 승무원을 진정시키십시오."]
+        }
+        self.warning_lines = game_toasts.get(self.assigned_game, self.warning_lines)
+
     def update_typewriter(self, logs):
         now = pygame.time.get_ticks()
         while self.typewriter_index < len(logs):
@@ -168,46 +195,58 @@ class Day1Manager:
             except:
                 pass
 
-    def start_fire_game(self):
+    def start_assigned_game(self):
         self.stop_all_sounds()
         
         # 1. main.py 프레임워크를 통해 실행 중인 경우
         try:
-            from main import settings, play_sfx
+            from main import settings, play_sfx, stage_mappings, play_music_track, SYSTEM_BGM_PATH, MINIGAME_MUSIC_PATH
             play_sfx("sfx_click")
-            # FIRE_GAME 상태로 변환 및 리셋 호출
-            settings.state = "FIRE_GAME"
-            if hasattr(settings, 'fire_game') and settings.fire_game:
-                settings.fire_game.reset()
+            
+            settings.state = self.assigned_game
+            active_game = stage_mappings.get(self.assigned_game)
+            if active_game:
+                active_game.reset()
                 
-                # 화재 미니게임 배경음 시작
+                # 게임별 음악 재생
                 try:
-                    from main import play_music_track, FIRE_MUSIC_PATH
-                    play_music_track(FIRE_MUSIC_PATH, fade_ms=0)
+                    if self.assigned_game == "ROBOT_GAME":
+                        play_music_track(SYSTEM_BGM_PATH, fade_ms=0)
+                    else:
+                        play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
                 except Exception as e:
-                    print(f"화재진압 음악 재생 실패: {e}")
+                    print(f"음악 재생 실패: {e}")
             return
         except Exception as e:
             print(f"main 프레임워크를 통한 전환 실패 (단독 실행 모드 시도): {e}")
 
-        # 2. day1.py 단독 실행 시 stage_1_fire.py를 서브프로세스로 직접 실행
-        try:
-            import subprocess
-            import sys
-            
-            # stage_1_fire.py 파일 경로 탐색
-            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_1_fire.py")
-            if not os.path.exists(script_path):
-                script_path = "stage_1_fire.py"
-                
-            if os.path.exists(script_path):
-                subprocess.Popen([sys.executable, script_path])
-                pygame.quit()
-                sys.exit()
-            else:
-                print(f"stage_1_fire.py 파일을 찾을 수 없습니다: {script_path}")
-        except Exception as e:
-            print(f"stage_1_fire.py 직접 실행 실패: {e}")
+        # 2. day6.py 단독 실행 시 해당 게임을 서브프로세스로 직접 실행
+        game_files = {
+            "GRAVITY_GAME": "stage_2_gravity.py",
+            "OVERHEAT_GAME": "stage_2_overheat.py",
+            "ROBOT_GAME": "stage_2_robot.py",
+            "RIOT_GAME": "stage_3_riot.py",
+            "NAV_GAME": "stage_4_nav.py",
+            "ELECTRIC_GAME": "stage_6_electric.py",
+            "QUARANTINE_GAME": "stage_6_patient.py"
+        }
+        target_file = game_files.get(self.assigned_game)
+        if target_file:
+            try:
+                import subprocess
+                import sys
+                script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), target_file)
+                if not os.path.exists(script_path):
+                    script_path = target_file
+                    
+                if os.path.exists(script_path):
+                    subprocess.Popen([sys.executable, script_path])
+                    pygame.quit()
+                    sys.exit()
+                else:
+                    print(f"파일을 찾을 수 없습니다: {script_path}")
+            except Exception as e:
+                print(f"직접 실행 실패: {e}")
 
     def update(self):
         if self.state == "INTRO_TEXT":
@@ -292,7 +331,7 @@ class Day1Manager:
                             pass
             elif self.state == "WARNING_TOAST":
                 if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
-                    self.start_fire_game()
+                    self.start_assigned_game()
                     
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.state == "WARNING_TOAST":
@@ -307,7 +346,7 @@ class Day1Manager:
                 # 시작하기 버튼 터치 판정
                 btn_rect = pygame.Rect(400, 410, 200, 50)
                 if btn_rect.collidepoint(vmx, vmy):
-                    self.start_fire_game()
+                    self.start_assigned_game()
 
     def draw(self, surface):
         # 1000x700 가상 화면에 그림
@@ -347,8 +386,6 @@ class Day1Manager:
                 text_y += 38
                 
         elif self.state == "GLITCH_BG":
-            # 멘트 없이 main.png만 나온 상태에서 지지직 거리는 특수 효과 연출
-            # 1. 가로 노이즈 밴드 및 픽셀 라인들
             if random.random() < 0.20:
                 for _ in range(random.randint(2, 6)):
                     y = random.randint(0, 700)
@@ -356,45 +393,37 @@ class Day1Manager:
                     w = random.randint(150, 1000)
                     x = random.randint(0, 1000 - w)
                     noise = pygame.Surface((w, h), pygame.SRCALPHA)
-                    # 반투명 지지직 노이즈
                     noise.fill((230, 230, 255, random.randint(90, 170)))
                     virtual_surf.blit(noise, (x, y))
             
-            # 2. RGB 글리치 색상 라인
             if random.random() < 0.12:
                 pygame.draw.line(virtual_surf, (255, 40, 40), (0, random.randint(0, 700)), (1000, random.randint(0, 700)), random.randint(1, 3))
             if random.random() < 0.12:
                 pygame.draw.line(virtual_surf, (30, 255, 60), (0, random.randint(0, 700)), (1000, random.randint(0, 700)), random.randint(1, 3))
             
-            # 3. 화면 지터/흔들림 계산
             if random.random() < 0.25:
                 shake_x = random.choice([-6, -3, 3, 6])
                 shake_y = random.choice([-4, -2, 2, 4])
                 
         elif self.state == "WARNING_TOAST":
-            # 비상 상황 경고 토스트 창 (중앙 정렬)
-            box_w = 600
+            box_w = 700
             box_h = 280
             box_x = (1000 - box_w) // 2
             box_y = (700 - box_h) // 2
             
-            # 반투명 짙은 적색 백그라운드
             toast_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
             pygame.draw.rect(toast_surf, (20, 4, 4, 235), (0, 0, box_w, box_h), border_radius=16)
             
-            # 더블 테두리
             pygame.draw.rect(toast_surf, (255, 50, 40), (0, 0, box_w, box_h), 3, border_radius=16)
             pygame.draw.rect(toast_surf, (255, 120, 30), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
             virtual_surf.blit(toast_surf, (box_x, box_y))
             
-            # 경고 헤더 텍스트
             header_str = "🚨 위험 상황 발생 🚨"
             header_surf = self.font_title.render(header_str, True, (255, 80, 60))
             virtual_surf.blit(header_surf, (500 - header_surf.get_width() // 2, box_y + 35))
             
-            # 위험 세부 내용
-            line1 = "위험: 선체 내부에 불이 붙었습니다."
-            line2 = "이동하여 문제를 해결하십시오."
+            line1 = self.warning_lines[0]
+            line2 = self.warning_lines[1]
             
             s_surf1 = self.font_body.render(line1, True, (255, 220, 210))
             virtual_surf.blit(s_surf1, (500 - s_surf1.get_width() // 2, box_y + 105))
@@ -402,7 +431,6 @@ class Day1Manager:
             s_surf2 = self.font_body.render(line2, True, (255, 220, 210))
             virtual_surf.blit(s_surf2, (500 - s_surf2.get_width() // 2, box_y + 145))
             
-            # 시작하기 버튼 렌더링 (마우스 호버 하이라이트 기능 추가)
             mx, my = pygame.mouse.get_pos()
             try:
                 from main import settings
@@ -415,12 +443,10 @@ class Day1Manager:
             is_hovered = btn_rect.collidepoint(vmx, vmy)
             
             if is_hovered:
-                # 호버 활성 시
                 pygame.draw.rect(virtual_surf, (255, 60, 40), btn_rect, border_radius=8)
                 pygame.draw.rect(virtual_surf, (255, 255, 255), btn_rect, 2, border_radius=8)
                 btn_txt_color = (255, 255, 255)
             else:
-                # 기본 상태
                 pygame.draw.rect(virtual_surf, (40, 10, 10), btn_rect, border_radius=8)
                 pygame.draw.rect(virtual_surf, (255, 80, 60), btn_rect, 2, border_radius=8)
                 btn_txt_color = (255, 160, 140)
@@ -428,7 +454,6 @@ class Day1Manager:
             btn_txt = self.font_btn.render("시작하기", True, btn_txt_color)
             virtual_surf.blit(btn_txt, (500 - btn_txt.get_width() // 2, 410 + (50 - btn_txt.get_height()) // 2))
 
-        # 최종 뷰 스케일링 및 흔들림(shake) 반영 블릿
         scaled_surf = pygame.transform.scale(virtual_surf, surface.get_size())
         surface.fill((0, 0, 0))
         surface.blit(scaled_surf, (shake_x, shake_y))
@@ -437,7 +462,7 @@ if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((1000, 700))
     clock = pygame.time.Clock()
-    game = Day1Manager()
+    game = Day6Manager()
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

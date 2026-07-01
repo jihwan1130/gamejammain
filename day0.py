@@ -62,6 +62,21 @@ class Day0Manager:
         self.font_body = get_sys_font(korean_fonts, 20, bold=True)
         self.font_title = get_sys_font(korean_fonts, 26, bold=True)
         
+    def wrap_text_chars(self, text, font, max_width):
+        lines = []
+        current_line = ""
+        for char in text:
+            test_line = current_line + char
+            if font.size(test_line)[0] <= max_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = char
+        if current_line:
+            lines.append(current_line)
+        return lines
+        
     def reset(self):
         self.state = "GLITCH" # GLITCH, MAIN_SCREEN
         self.start_ticks = pygame.time.get_ticks()
@@ -193,16 +208,25 @@ class Day0Manager:
         # Format final resources
         final_res_str = ", ".join([f"{k}: {v}" for k, v in final_resources.items()])
         
-        # 멘트 설정
-        self.comments = [
-            "긴급 지구 탈출",
+        raw_comments = [
+            "■ 긴급 지구 탈출 요약 ■",
             f"구출 인원: {crew_res}",
             f"획득 자원: {res_res}",
-            f"총 자원: 인원 ({final_crew_str}) / 자원 ({final_res_str})",
+            f"총 인원: {final_crew_str}",
+            f"총 자원: {final_res_str}",
             "",
             "Day 0 End",
-            "다음날로 넘어가시겠습니까?"
+            "▶ [ SPACE ] 키를 눌러 다음날로 넘어가십시오."
         ]
+        
+        self.comments = []
+        for line in raw_comments:
+            if line == "":
+                self.comments.append("")
+            else:
+                # 800픽셀 너비 제한으로 한 글자 단위 랩핑 진행
+                wrapped = self.wrap_text_chars(line, self.font_body, 800)
+                self.comments.extend(wrapped)
         
         self.typewriter_index = 0
         self.char_index = 0
@@ -400,6 +424,14 @@ class Day0Manager:
                 
             # 텍스트 직접 출력 (대화 상자 없음, 가독성을 위한 그림자 효과 적용)
             text_y = 200
+            line_height = 40
+            if len(self.comments) > 10:
+                text_y = 120
+                line_height = 30
+            elif len(self.comments) > 8:
+                text_y = 150
+                line_height = 34
+                
             for line in self.displayed_lines:
                 color = (245, 245, 245) # 소프트 화이트
                 if "▶" in line:
@@ -412,7 +444,7 @@ class Day0Manager:
                 # 본문 렌더링
                 txt_surf = self.font_body.render(line, True, color)
                 virtual_surf.blit(txt_surf, (100, text_y))
-                text_y += 40
+                text_y += line_height
                 
             pygame.transform.scale(virtual_surf, surface.get_size(), surface)
 
