@@ -1498,6 +1498,7 @@ def main():
     
     settings.resources_game = resources_game
     settings.day_1_manager = day_1_manager
+    settings.day_0_manager = day_0_manager
 
     
     stage_mappings = {

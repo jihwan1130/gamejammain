@@ -96,6 +96,10 @@ class ResourcesGame:
         self.my_crew = list(self.crew_base)
         self.dead_count = 0
         
+        # Tracking newly collected crew and resources
+        self.collected_crew = []
+        self.collected_resources = {"산소": 0, "전기": 0, "정신력": 0}
+        
         self.MAP_WIDTH, self.MAP_HEIGHT = 2600, 2000  
         self.HITBOX_SIZE = 12
         self.SPRITE_SIZE = 144
@@ -276,10 +280,14 @@ class ResourcesGame:
                 elif event.key == pygame.K_RETURN and self.is_clear_finished():
                     if settings.is_campaign:
                         self.stop_run_sound()
-                        settings.current_day = 1
-                        settings.state = "DAY_1"
-                        if hasattr(settings, 'day_1_manager') and settings.day_1_manager:
-                            settings.day_1_manager.reset()
+                        settings.state = "DAY_0"
+                        if hasattr(settings, 'day_0_manager') and settings.day_0_manager:
+                            settings.day_0_manager.show_summary(
+                                self.collected_crew,
+                                self.collected_resources,
+                                self.my_crew,
+                                self.resources
+                            )
                         play_sfx("sfx_click")
                     else:
                         self.reset()
@@ -293,10 +301,14 @@ class ResourcesGame:
                     if btn_rect.collidepoint(event.pos):
                         self.stop_run_sound()
                         if settings.is_campaign:
-                            settings.current_day = 1
-                            settings.state = "DAY_1"
-                            if hasattr(settings, 'day_1_manager') and settings.day_1_manager:
-                                settings.day_1_manager.reset()
+                            settings.state = "DAY_0"
+                            if hasattr(settings, 'day_0_manager') and settings.day_0_manager:
+                                settings.day_0_manager.show_summary(
+                                    self.collected_crew,
+                                    self.collected_resources,
+                                    self.my_crew,
+                                    self.resources
+                                )
                             play_sfx("sfx_click")
                         else:
                             go_to_minigames()
@@ -391,6 +403,7 @@ class ResourcesGame:
                     from main import play_sfx
                     if item["type"] == "crew" and len(self.my_crew) < 8:
                         self.my_crew.append(item["name"])
+                        self.collected_crew.append(item["name"])
                         self.play_clearsoundd_sfx()
                     elif item["type"] == "resource":
                         # 산소, 전기, 정신력 중 200 미만인 자원을 무작위로 선택해 5점 증가 (초기자원 80/200, 자원당 5씩 수집)
@@ -399,6 +412,7 @@ class ResourcesGame:
                             available_res = ["산소", "전기", "정신력"]
                         chosen_res = random.choice(available_res)
                         self.resources[chosen_res] = min(200, self.resources[chosen_res] + 5)
+                        self.collected_resources[chosen_res] += 5
                         self.play_change_sfx()
                     self.items.remove(item)
         self.update_run_sound()

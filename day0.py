@@ -175,6 +175,47 @@ class Day0Manager:
                         pass
                     self.type_sound_channel = None
             
+    def show_summary(self, collected_crew, collected_resources, final_crew, final_resources):
+        self.state = "SUMMARY"
+        self.start_ticks = pygame.time.get_ticks()
+        
+        # Format collected crew list
+        crew_res = ", ".join(collected_crew) if collected_crew else "없음"
+        
+        # Format collected resources
+        res_res = ", ".join([f"{k} +{v}" for k, v in collected_resources.items() if v > 0])
+        if not res_res:
+            res_res = "없음"
+            
+        # Format final crew list
+        final_crew_str = ", ".join(final_crew)
+        
+        # Format final resources
+        final_res_str = ", ".join([f"{k}: {v}" for k, v in final_resources.items()])
+        
+        # 멘트 설정
+        self.comments = [
+            "긴급 지구 탈출",
+            f"구출 인원: {crew_res}",
+            f"획득 자원: {res_res}",
+            f"총 자원: 인원 ({final_crew_str}) / 자원 ({final_res_str})",
+            "",
+            "Day 0 End",
+            "다음날로 넘어가시겠습니까?"
+        ]
+        
+        self.typewriter_index = 0
+        self.char_index = 0
+        self.last_char_ticks = pygame.time.get_ticks()
+        self.displayed_lines = []
+        self.pause_indices = set() # 요약 화면은 중간 정지 없이 끝까지 출력
+        
+        # BGM 정지
+        try:
+            pygame.mixer.music.stop()
+        except:
+            pass
+
     def update(self):
         now = pygame.time.get_ticks()
         if self.state == "GLITCH":
@@ -201,7 +242,7 @@ class Day0Manager:
                         pygame.mixer.music.play(-1)
                     except Exception as e:
                         print(f"orbit.mp3 재생 실패: {e}")
-        elif self.state == "MAIN_SCREEN":
+        elif self.state in ["MAIN_SCREEN", "SUMMARY"]:
             self.update_typewriter(self.comments)
             
     def handle_input(self):
@@ -225,7 +266,7 @@ class Day0Manager:
                 pass
             return
             
-        if self.state == "MAIN_SCREEN":
+        if self.state in ["MAIN_SCREEN", "SUMMARY"]:
             if event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
                     # Check if the last line has finished typing, or typewriter is fully finished
@@ -244,14 +285,26 @@ class Day0Manager:
                             except:
                                 pass
                             self.type_sound_channel = None
-                        try:
-                            from main import settings, play_sfx
-                            play_sfx("sfx_click")
-                            settings.state = "RESOURCE_GAME"
-                            if hasattr(settings, 'resources_game') and settings.resources_game:
-                                settings.resources_game.reset()
-                        except Exception as e:
-                            print(f"RESOURCE_GAME 전환 실패: {e}")
+                        
+                        if self.state == "SUMMARY":
+                            try:
+                                from main import settings, play_sfx
+                                play_sfx("sfx_click")
+                                settings.current_day = 1
+                                settings.state = "DAY_1"
+                                if hasattr(settings, 'day_1_manager') and settings.day_1_manager:
+                                    settings.day_1_manager.reset()
+                            except Exception as e:
+                                print(f"DAY_1 전환 실패: {e}")
+                        else:
+                            try:
+                                from main import settings, play_sfx
+                                play_sfx("sfx_click")
+                                settings.state = "RESOURCE_GAME"
+                                if hasattr(settings, 'resources_game') and settings.resources_game:
+                                    settings.resources_game.reset()
+                            except Exception as e:
+                                print(f"RESOURCE_GAME 전환 실패: {e}")
                     else:
                         # Find the target pause index for the current sentence group
                         target_pause_index = len(self.comments) - 1
@@ -335,7 +388,7 @@ class Day0Manager:
                 surface.fill((0, 0, 0))
                 surface.blit(temp_surf, (shake_x, shake_y))
                 
-        elif self.state == "MAIN_SCREEN":
+        elif self.state in ["MAIN_SCREEN", "SUMMARY"]:
             if self.main_img:
                 virtual_surf.blit(self.main_img, (0, 0))
             else:
