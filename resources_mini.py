@@ -88,13 +88,19 @@ class ResourcesGame:
         self.generate_planned_city()
         self.player_rect.center = (self.MAP_WIDTH//2, self.MAP_HEIGHT//2)
         
+        # Player spawn buffer zone to avoid spawning items on top of player
+        player_buffer = self.player_rect.inflate(80, 80)
+        
         for c in self.crew_farmable:
             placed = False
             while not placed:
                 rx = random.randint(80, self.MAP_WIDTH - 80)
                 ry = random.randint(80, self.MAP_HEIGHT - 80)
                 temp_rect = pygame.Rect(rx, ry, 28, 28)
-                if not any(temp_rect.colliderect(b.inflate(10, 10)) for b in self.obstacles):
+                # Check collision against obstacles, already placed items (with buffer), and player spawn buffer
+                if (not any(temp_rect.colliderect(b.inflate(10, 10)) for b in self.obstacles) and
+                    not any(temp_rect.colliderect(item["rect"].inflate(15, 15)) for item in self.items) and
+                    not temp_rect.colliderect(player_buffer)):
                     self.items.append({"rect": temp_rect, "type": "crew", "name": c})
                     placed = True
                     
@@ -105,7 +111,10 @@ class ResourcesGame:
                 rx = random.randint(80, self.MAP_WIDTH - 80)
                 ry = random.randint(80, self.MAP_HEIGHT - 80)
                 temp_rect = pygame.Rect(rx, ry, 20, 20)
-                if not any(temp_rect.colliderect(b.inflate(8, 8)) for b in self.obstacles):
+                # Check collision against obstacles, already placed items (with buffer), and player spawn buffer
+                if (not any(temp_rect.colliderect(b.inflate(8, 8)) for b in self.obstacles) and
+                    not any(temp_rect.colliderect(item["rect"].inflate(15, 15)) for item in self.items) and
+                    not temp_rect.colliderect(player_buffer)):
                     self.items.append({"rect": temp_rect, "type": "resource", "name": res_type})
                     placed = True
                     
