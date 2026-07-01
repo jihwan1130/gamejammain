@@ -3,9 +3,10 @@ import sys
 import os
 import random
 
-class Day3Manager:
+class Day7Manager:
     def __init__(self):
         self.bg_img = None
+        self.space4_bg = None
         try:
             bg_path = os.path.join("assets", "main.png")
             if os.path.exists(bg_path):
@@ -15,6 +16,18 @@ class Day3Manager:
                 print(f"경고: {bg_path} 파일이 존재하지 않습니다.")
         except Exception as e:
             print(f"main.png 로드 실패: {e}")
+            
+        try:
+            bg_path = os.path.join("assets", "space4.png")
+            if not os.path.exists(bg_path):
+                bg_path = os.path.join("assets", "main.png")
+            if os.path.exists(bg_path):
+                raw_bg = pygame.image.load(bg_path).convert()
+                self.space4_bg = pygame.transform.scale(raw_bg, (1000, 700))
+            else:
+                print(f"경고: {bg_path} 파일이 존재하지 않습니다.")
+        except Exception as e:
+            print(f"space4.png 로드 실패: {e}")
             
         self.init_fonts()
         self.reset()
@@ -33,6 +46,26 @@ class Day3Manager:
         self.font_title = get_sys_font(korean_fonts, 26, bold=True)
         self.font_body = get_sys_font(korean_fonts, 20, bold=True)
         self.font_btn = get_sys_font(korean_fonts, 18, bold=True)
+        
+    def wrap_text_lines(self, lines, font, max_width):
+        wrapped_lines = []
+        for line in lines:
+            if line.startswith("---"):
+                wrapped_lines.append(line)
+                continue
+                
+            current = ""
+            for char in line:
+                test = current + char
+                if font.size(test)[0] <= max_width:
+                    current = test
+                else:
+                    if current:
+                        wrapped_lines.append(current)
+                    current = char
+            if current:
+                wrapped_lines.append(current)
+        return wrapped_lines
         
     def get_main_ref(self):
         settings = getattr(self, 'settings', None)
@@ -61,25 +94,21 @@ class Day3Manager:
         return True
 
     def reset(self):
-        self.state = "INTRO_TEXT" # INTRO_TEXT, NAVIGATION, GLITCH_BG, WARNING_TOAST, PEACEFUL_TOAST
+        self.state = "START_WAIT" # START_WAIT, GLITCH_BG, WARNING_TOAST, GAMEPLAY
+        self.start_ticks = pygame.time.get_ticks()
+        self.glitch_entered_ticks = 0
+        
+        # 타이머 트래킹용 변수
         self.navigation_start_ticks = 0
         self.check_count = 0
         self.incident_triggered = False
         
-        self.comments = [
-            "3일차 항해를 시작했습니다.",
-            "우주선에서 발생하는 문제를 해결하고, 무사히 목적지까지 도달해주세요.",
-            "",
-            "▶ [ SPACE ] 키를 눌러 계속 진행하십시오."
-        ]
+        self.comments = []
+        self.displayed_lines = []
         
         self.typewriter_index = 0
         self.char_index = 0
         self.last_char_ticks = pygame.time.get_ticks()
-        self.displayed_lines = []
-        
-        # 타이머 트래킹용 변수
-        self.glitch_entered_ticks = 0
         
         # 타이핑 사운드 (key2.mp3) 로드
         self.type_sound = None
@@ -115,31 +144,11 @@ class Day3Manager:
         except Exception as e:
             print(f"8beep.MP3 사운드 로드 실패: {e}")
             
-        # 이번 라운드에 배정된 랜덤 게임 및 멘트 확인 (동적 바인딩)
-        self.assigned_game = None
-        self.warning_lines = ["위험 상황이 발생했습니다.", "문제를 해결하십시오."]
-        
-        self.get_main_ref()
-        settings = getattr(self, 'settings', None)
-        if settings and hasattr(settings, 'random_day_games') and "DAY_3" in settings.random_day_games:
-            self.assigned_game = settings.random_day_games["DAY_3"]
-
-        # 만약 단독 실행 등으로 배정된 게임이 없다면 랜덤으로 하나 선택
-        if not self.assigned_game:
-            candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME"]
-            self.assigned_game = random.choice(candidates)
-
-        # 게임별 멘트 정의
-        game_toasts = {
-            "GRAVITY_GAME": ["중력장치 프로그램이 고장났습니다.", "서버를 복구하십시오."],
-            "OVERHEAT_GAME": ["원자력 온도 조절 장치가 고장나 우주선이 중심을 잃었습니다.", "원자로로 이동하여 이를 수리하십시오."],
-            "ROBOT_GAME": ["우주선 내 ai들이 고장나 시민들을 공격하기 시작했습니다.", "고장난 로봇들을 파괴하십시오."],
-            "RIOT_GAME": ["시민들이 장기간 과도한 긴장감에 시달려 폭동이 일어났습니다.", "시민들을 진정시키십시오."],
-            "NAV_GAME": ["항법 장치가 고장나 우주선이 방향을 찾을 수 없습니다.", "항법 장치를 보정하여, 우주선을 수리해주십시오."],
-            "ELECTRIC_GAME": ["에너지 장치가 고장났습니다.", "고압실에 들어가 이를 수리하십시오."],
-            "QUARANTINE_GAME": ["장시간의 비행 속에 승무원이 공황을 일으키기 시작했습니다.", "진정제를 투여하여 승무원을 진정시키십시오."]
-        }
-        self.warning_lines = game_toasts.get(self.assigned_game, self.warning_lines)
+        # 이번 라운드에 배정된 게임 및 멘트 확인 (Day 7 고정 행성 발견 이벤트)
+        self.warning_lines = [
+            "항해 중에 3개의 행성을 발견했습니다.",
+            "3개의 행성 중에 하나를 선택해주세요."
+        ]
 
     def update_typewriter(self, logs):
         now = pygame.time.get_ticks()
@@ -225,104 +234,41 @@ class Day3Manager:
     def start_assigned_game(self):
         self.stop_all_sounds()
         self.get_main_ref()
-        
-        settings = getattr(self, 'settings', None)
         play_sfx = getattr(self, 'play_sfx', None)
-        stage_mappings = getattr(self, 'stage_mappings', None)
-        play_music_track = getattr(self, 'play_music_track', None)
-        
-        # 1. 프레임워크 상에서 실행
-        if settings and play_sfx and stage_mappings:
+        if play_sfx:
             try:
                 play_sfx("sfx_click")
-                settings.state = self.assigned_game
-                active_game = stage_mappings.get(self.assigned_game)
-                if active_game:
-                    active_game.reset()
-                    
-                    # 음악 재생
-                    if play_music_track:
-                        system_bgm = getattr(self, 'SYSTEM_BGM_PATH', getattr(sys.modules.get('main') or sys.modules.get('__main__'), 'SYSTEM_BGM_PATH', None))
-                        minigame_bgm = getattr(self, 'MINIGAME_MUSIC_PATH', getattr(sys.modules.get('main') or sys.modules.get('__main__'), 'MINIGAME_MUSIC_PATH', None))
-                        try:
-                            if self.assigned_game == "ROBOT_GAME" and system_bgm:
-                                play_music_track(system_bgm, fade_ms=0)
-                            elif minigame_bgm:
-                                play_music_track(minigame_bgm, fade_ms=0)
-                        except Exception as e:
-                            print(f"음악 재생 실패: {e}")
-                return
-            except Exception as e:
-                print(f"프레임워크 상태 전환 실패: {e}")
-
-        # 2. day3.py 단독 실행 시 해당 게임을 서브프로세스로 직접 실행
-        game_files = {
-            "GRAVITY_GAME": "stage_2_gravity.py",
-            "OVERHEAT_GAME": "stage_2_overheat.py",
-            "ROBOT_GAME": "stage_2_robot.py",
-            "RIOT_GAME": "stage_3_riot.py",
-            "NAV_GAME": "stage_4_nav.py",
-            "ELECTRIC_GAME": "stage_6_electric.py",
-            "QUARANTINE_GAME": "stage_6_patient.py"
-        }
-        target_file = game_files.get(self.assigned_game)
-        if target_file:
-            try:
-                import subprocess
-                script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), target_file)
-                if not os.path.exists(script_path):
-                    script_path = target_file
-                    
-                if os.path.exists(script_path):
-                    subprocess.Popen([sys.executable, script_path])
-                    pygame.quit()
-                    sys.exit()
-                else:
-                    print(f"파일을 찾을 수 없습니다: {script_path}")
-            except Exception as e:
-                print(f"직접 실행 실패: {e}")
+            except:
+                pass
+        self.state = "GAMEPLAY"
 
     def update(self):
-        if self.state == "INTRO_TEXT":
-            self.update_typewriter(self.comments)
-        elif self.state == "NAVIGATION":
+        if self.state == "START_WAIT":
             now = pygame.time.get_ticks()
-            elapsed = (now - self.navigation_start_ticks) / 1000.0
-            
-            # 5초마다 75% 확률 체크
-            expected_checks = int(elapsed // 5.0)
-            if expected_checks > self.check_count and self.check_count < 4:
-                self.check_count = expected_checks
-                import random
-                if random.random() < 0.75:
-                    self.incident_triggered = True
-                    self.state = "GLITCH_BG"
-                    self.glitch_entered_ticks = pygame.time.get_ticks()
-                    if self.glitch_sound:
-                        try:
-                            self.get_main_ref()
-                            settings = getattr(self, 'settings', None)
-                            vol = settings.volume if settings else 0.5
-                            self.glitch_sound.set_volume(vol * 0.7)
-                            self.glitch_sound.play(-1) # 루프 재생
-                        except:
-                            pass
+            elapsed = (now - self.start_ticks) / 1000.0
+            if elapsed >= 3.0:
+                self.state = "GLITCH_BG"
+                self.glitch_entered_ticks = now
+                if self.glitch_sound:
                     try:
                         self.get_main_ref()
-                        play_sfx = getattr(self, 'play_sfx', None)
-                        if play_sfx:
-                            play_sfx("sfx_crash")
+                        settings = getattr(self, 'settings', None)
+                        vol = settings.volume if settings else 0.5
+                        self.glitch_sound.set_volume(vol * 0.7)
+                        self.glitch_sound.play(-1) # 루프 재생
                     except:
                         pass
-            
-            if not self.incident_triggered and elapsed >= 20.0:
-                self.state = "PEACEFUL_TOAST"
-                self.stop_all_sounds()
-                
+                try:
+                    self.get_main_ref()
+                    play_sfx = getattr(self, 'play_sfx', None)
+                    if play_sfx:
+                        play_sfx("sfx_crash")
+                except:
+                    pass
         elif self.state == "GLITCH_BG":
-            # 4초(4000ms) 대기 후 경고 창(WARNING_TOAST)으로 자동 변환
+            # 1.5초(1500ms) 대기 후 경고 창(WARNING_TOAST)으로 자동 변환
             now = pygame.time.get_ticks()
-            if now - self.glitch_entered_ticks >= 4000:
+            if now - self.glitch_entered_ticks >= 1500:
                 if self.glitch_sound:
                     try:
                         self.glitch_sound.stop()
@@ -461,8 +407,10 @@ class Day3Manager:
         
         virtual_surf = pygame.Surface((1000, 700))
         
-        if self.bg_img:
-            virtual_surf.blit(self.bg_img, (0, 0))
+        # GAMEPLAY 상태에서는 space4.png를, 그 외에는 main.png를 배경으로 사용
+        current_bg = self.space4_bg if (self.state == "GAMEPLAY" and self.space4_bg) else self.bg_img
+        if current_bg:
+            virtual_surf.blit(current_bg, (0, 0))
         else:
             virtual_surf.fill((10, 10, 15))
             
@@ -574,14 +522,14 @@ class Day3Manager:
             box_y = (700 - box_h) // 2
             
             toast_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-            pygame.draw.rect(toast_surf, (20, 4, 4, 235), (0, 0, box_w, box_h), border_radius=16)
+            pygame.draw.rect(toast_surf, (10, 15, 30, 235), (0, 0, box_w, box_h), border_radius=16)
             
-            pygame.draw.rect(toast_surf, (255, 50, 40), (0, 0, box_w, box_h), 3, border_radius=16)
-            pygame.draw.rect(toast_surf, (255, 120, 30), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
+            pygame.draw.rect(toast_surf, (0, 180, 255), (0, 0, box_w, box_h), 3, border_radius=16)
+            pygame.draw.rect(toast_surf, (100, 220, 255), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
             virtual_surf.blit(toast_surf, (box_x, box_y))
             
-            header_str = "🚨 위험 상황 발생 🚨"
-            header_surf = self.font_title.render(header_str, True, (255, 80, 60))
+            header_str = "🪐 행성 발견 🪐"
+            header_surf = self.font_title.render(header_str, True, (100, 220, 255))
             virtual_surf.blit(header_surf, (500 - header_surf.get_width() // 2, box_y + 35))
             
             line1 = self.warning_lines[0]
@@ -609,9 +557,9 @@ class Day3Manager:
                 return y
                 
             y_offset = box_y + 100
-            y_offset = draw_wrapped_text(virtual_surf, line1, self.font_body, (255, 220, 210), 500, y_offset, box_w - 60)
+            y_offset = draw_wrapped_text(virtual_surf, line1, self.font_body, (220, 240, 255), 500, y_offset, box_w - 60)
             y_offset += 8
-            draw_wrapped_text(virtual_surf, line2, self.font_body, (255, 220, 210), 500, y_offset, box_w - 60)
+            draw_wrapped_text(virtual_surf, line2, self.font_body, (220, 240, 255), 500, y_offset, box_w - 60)
             
             mx, my = pygame.mouse.get_pos()
             try:
@@ -627,16 +575,32 @@ class Day3Manager:
             is_hovered = btn_rect.collidepoint(vmx, vmy)
             
             if is_hovered:
-                pygame.draw.rect(virtual_surf, (255, 60, 40), btn_rect, border_radius=8)
+                pygame.draw.rect(virtual_surf, (0, 150, 255), btn_rect, border_radius=8)
                 pygame.draw.rect(virtual_surf, (255, 255, 255), btn_rect, 2, border_radius=8)
                 btn_txt_color = (255, 255, 255)
             else:
-                pygame.draw.rect(virtual_surf, (40, 10, 10), btn_rect, border_radius=8)
-                pygame.draw.rect(virtual_surf, (255, 80, 60), btn_rect, 2, border_radius=8)
-                btn_txt_color = (255, 160, 140)
+                pygame.draw.rect(virtual_surf, (10, 20, 40), btn_rect, border_radius=8)
+                pygame.draw.rect(virtual_surf, (0, 180, 255), btn_rect, 2, border_radius=8)
+                btn_txt_color = (150, 220, 255)
                 
-            btn_txt = self.font_btn.render("시작하기", True, btn_txt_color)
+            btn_txt = self.font_btn.render("행성 선택", True, btn_txt_color)
             virtual_surf.blit(btn_txt, (500 - btn_txt.get_width() // 2, 410 + (50 - btn_txt.get_height()) // 2))
+
+        elif self.state == "GAMEPLAY":
+            # space4_bg 위에 약간의 반투명 어두운 오버레이를 올려서 글자가 잘 보이게 함
+            overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 80)) # 불투명도 약 30%
+            virtual_surf.blit(overlay, (0, 0))
+            
+            # 타이틀
+            title = self.font_title.render("■ PLANET EXPLORATION - DECISION PROTOCOL ■", True, (0, 220, 100))
+            virtual_surf.blit(title, (500 - title.get_width() // 2, 50))
+            
+            desc = self.font_body.render("아래에 3개의 행성 에셋 및 선택지가 표시될 공간입니다.", True, (245, 245, 245))
+            virtual_surf.blit(desc, (500 - desc.get_width() // 2, 300))
+            
+            desc2 = self.font_btn.render("(이후 이미지 에셋 및 선택 로직 개발은 여기에 진행해주시면 됩니다)", True, (150, 150, 150))
+            virtual_surf.blit(desc2, (500 - desc2.get_width() // 2, 350))
 
         scaled_surf = pygame.transform.scale(virtual_surf, surface.get_size())
         surface.fill((0, 0, 0))
@@ -646,7 +610,7 @@ if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((1000, 700))
     clock = pygame.time.Clock()
-    game = Day3Manager()
+    game = Day7Manager()
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

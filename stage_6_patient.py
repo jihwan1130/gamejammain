@@ -206,12 +206,25 @@ class CrewCalmGame:
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((10, 10, 15, 220))
             virtual_surf.blit(overlay, (0, 0))
+            
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_success = "[ ENTER: 계속 진행 ]"
+                sub_fail = "페널티: 전체 정신력 -20 | [ ENTER: 계속 진행 ]"
+            else:
+                sub_success = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                sub_fail = "페널티: 전체 정신력 -20 | [ ENTER: 재시도 | ESC: 복귀 ]"
+                
             if self.state == "SUCCESS":
                 msg = self.title_font.render("■ 성공: 승무원을 진정시켰습니다. ■", True, self.GREEN)
-                sub = self.font.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, self.WHITE)
+                sub = self.font.render(sub_success, True, self.WHITE)
             else:
                 msg = self.title_font.render("🚨 실패: 승무원의 부상이 고조되었습니다. 🚨", True, self.RED)
-                sub = self.font.render("페널티: 전체 정신력 -20 | [ ENTER: 재시도 | ESC: 복귀 ]", True, self.WHITE)
+                sub = self.font.render(sub_fail, True, self.WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 380))
             

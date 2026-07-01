@@ -388,7 +388,15 @@ class MeteorGame:
             msg_surf = font_end.render(msg, True, color)
             msg_rect = msg_surf.get_rect(center=(settings.width // 2, settings.height // 2 - 30))
             
-            sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+            is_campaign = False
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             sub_surf = font_sub.render(sub_text, True, (255, 255, 255))
             sub_rect = sub_surf.get_rect(center=(settings.width // 2, settings.height // 2 + 30))
             

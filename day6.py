@@ -587,11 +587,31 @@ class Day6Manager:
             line1 = self.warning_lines[0]
             line2 = self.warning_lines[1]
             
-            s_surf1 = self.font_body.render(line1, True, (255, 220, 210))
-            virtual_surf.blit(s_surf1, (500 - s_surf1.get_width() // 2, box_y + 105))
-            
-            s_surf2 = self.font_body.render(line2, True, (255, 220, 210))
-            virtual_surf.blit(s_surf2, (500 - s_surf2.get_width() // 2, box_y + 145))
+            def draw_wrapped_text(surface, text, font, color, center_x, start_y, max_width, line_spacing=32):
+                lines = []
+                current_line = ""
+                for char in text:
+                    test_line = current_line + char
+                    if font.size(test_line)[0] <= max_width:
+                        current_line = test_line
+                    else:
+                        if current_line:
+                            lines.append(current_line)
+                        current_line = char
+                if current_line:
+                    lines.append(current_line)
+                
+                y = start_y
+                for line in lines:
+                    surf = font.render(line, True, color)
+                    surface.blit(surf, (center_x - surf.get_width() // 2, y))
+                    y += line_spacing
+                return y
+                
+            y_offset = box_y + 100
+            y_offset = draw_wrapped_text(virtual_surf, line1, self.font_body, (255, 220, 210), 500, y_offset, box_w - 60)
+            y_offset += 8
+            draw_wrapped_text(virtual_surf, line2, self.font_body, (255, 220, 210), 500, y_offset, box_w - 60)
             
             mx, my = pygame.mouse.get_pos()
             try:

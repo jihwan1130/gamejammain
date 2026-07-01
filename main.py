@@ -28,6 +28,7 @@ from day3 import Day3Manager
 from day4 import Day4Manager
 from day_5 import Day5Manager
 from day6 import Day6Manager
+from day7 import Day7Manager
 
 
 
@@ -1413,7 +1414,15 @@ class MeteorGame:
             msg_surf = font_end.render(msg, True, color)
             msg_rect = msg_surf.get_rect(center=(settings.width // 2, settings.height // 2 - 30))
             
-            sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+            is_campaign = False
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             sub_surf = font_sub.render(sub_text, True, (255, 255, 255))
             sub_rect = sub_surf.get_rect(center=(settings.width // 2, settings.height // 2 + 30))
             
@@ -1513,6 +1522,7 @@ def main():
     day_4_manager = Day4Manager()
     day_5_manager = Day5Manager()
     day_6_manager = Day6Manager()
+    day_7_manager = Day7Manager()
     
     settings.resources_game = resources_game
     settings.day_0_manager = day_0_manager
@@ -1522,6 +1532,7 @@ def main():
     settings.day_4_manager = day_4_manager
     settings.day_5_manager = day_5_manager
     settings.day_6_manager = day_6_manager
+    settings.day_7_manager = day_7_manager
     settings.fire_game = fire_game
 
     
@@ -1546,10 +1557,11 @@ def main():
         "DAY_4": day_4_manager,
         "DAY_5": day_5_manager,
         "DAY_6": day_6_manager,
+        "DAY_7": day_7_manager,
     }
     
     # 순환 참조 방지를 위해 메인 프레임워크의 settings 및 sfx 함수를 각 매니저에 직접 주입
-    for mgr in [day_0_manager, day_1_manager, day_2_manager, day_3_manager, day_4_manager, day_5_manager, day_6_manager]:
+    for mgr in [day_0_manager, day_1_manager, day_2_manager, day_3_manager, day_4_manager, day_5_manager, day_6_manager, day_7_manager]:
         if mgr:
             mgr.settings = settings
             mgr.play_sfx = play_sfx
@@ -1643,6 +1655,15 @@ def main():
         
         events = pygame.event.get()
         for event in events:
+            # ================= QA CHEAT SKIP BUTTON CLICK HANDLER (EASY TO DELETE) =================
+            if settings.is_campaign and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                qa_btn_rect = pygame.Rect(settings.width - 160, 20, 140, 35)
+                if qa_btn_rect.collidepoint(event.pos):
+                    print(f"[QA CHEAT] Skipping from {settings.state} / Day {settings.current_day} to the next day.")
+                    play_sfx("sfx_click")
+                    next_campaign_day()
+                    continue
+            # =======================================================================================
             if event.type == pygame.QUIT:
                 running = False
             
@@ -1958,7 +1979,7 @@ def main():
                         
                         if (settings.is_campaign and 
                             not settings.state.startswith("DAY_") and
-                            game_state in ["SUCCESS", "WON"]):
+                            game_state in ["SUCCESS", "WON", "FAIL", "LOST"]):
                             
                             print("[DEBUG ENTER] Campaign progress triggered! Moving to next day.")
                             play_sfx("sfx_click")
@@ -2427,6 +2448,18 @@ def main():
                 txt_rect = txt_surf.get_rect(center=(rect.width // 2, rect.height // 2))
                 btn_surf.blit(txt_surf, txt_rect)
                 settings.screen.blit(btn_surf, (rect.x, rect.y))
+        
+        # ================= QA CHEAT SKIP BUTTON DRAWING (EASY TO DELETE) =================
+        if settings.is_campaign:
+            qa_btn_rect = pygame.Rect(settings.width - 160, 20, 140, 35)
+            pygame.draw.rect(settings.screen, (30, 15, 15), qa_btn_rect)
+            pygame.draw.rect(settings.screen, (255, 80, 80), qa_btn_rect, 2)
+            
+            qa_font = get_scaled_font(14, is_korean=True)
+            qa_text = qa_font.render("[QA] 다음 날로", True, (255, 120, 120))
+            qa_text_rect = qa_text.get_rect(center=qa_btn_rect.center)
+            settings.screen.blit(qa_text, qa_text_rect)
+        # =========================================================================
         
         # 3. 브라운관 전자 빔 및 스캔라인/비네팅 오버레이 필터
         beam.draw(settings.screen)

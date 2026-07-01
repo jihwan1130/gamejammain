@@ -215,12 +215,23 @@ class CoreThermalStabilizerGame:
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((25, 5, 5, 230))
             virtual_surf.blit(overlay, (0, 0))
+            
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             if self.state == "SUCCESS":
                 msg = self.font_main.render("■ 코어 온도 안정화 제어 성공 (SUCCESS) ■", True, (100, 255, 150))
-                sub = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = self.font_sub.render(sub_text, True, WHITE)
             else:
                 msg = self.font_main.render("🚨 코어 과열 용해 파손 (FAIL) 🚨", True, theme_red)
-                sub = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = self.font_sub.render(sub_text, True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             

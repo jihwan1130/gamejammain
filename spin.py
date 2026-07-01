@@ -228,7 +228,17 @@ class CrankLandingGame:
             msg = self.font_main.render("■ 아슬아슬한 정상 착륙 (SUCCESS) ■", True, self.MINT)
             sub1 = self.font_sub.render("모든 승무원이 합심하여 레버를 당겨 선체를 제어했습니다.", True, self.WHITE)
             sub2 = self.font_sub.render("급격한 역추진 여파로 연료, 산소, 전력 등 [모든 자원이 1로 감소]합니다.", True, self.RED)
-            sub3 = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, self.WHITE)
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub3_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub3_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
+            sub3 = self.font_sub.render(sub3_text, True, self.WHITE)
             
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 300))
             virtual_surf.blit(sub1, (500 - sub1.get_width()//2, 350))
@@ -256,8 +266,18 @@ class CrankLandingGame:
             overlay.fill((10, 0, 0, 255))
             virtual_surf.blit(overlay, (0, 0))
             
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_control_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_control_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             sub = self.font_sub.render(f"[{self.crew_list[self.selected_crew_idx]}] 승무원의 고귀한 희생으로 우주선은 안전하게 착륙했습니다.", True, self.WHITE)
-            sub_control = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, self.WHITE)
+            sub_control = self.font_sub.render(sub_control_text, True, self.WHITE)
             
             virtual_surf.blit(self.txt_ending_title, (500 - self.txt_ending_title.get_width()//2, 300))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 350))

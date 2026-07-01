@@ -149,12 +149,23 @@ class HighVoltageSparkDodgeGame:
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((20, 15, 5, 220))
             virtual_surf.blit(overlay, (0, 0))
+            
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             if self.state == "SUCCESS":
                 msg = font_main.render("■ 고전압 그리드 방어 완료 (SUCCESS) ■", True, (100, 240, 120))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = font_sub.render(sub_text, True, WHITE)
             else:
                 msg = font_main.render("🚨 변전소 낙뢰 충격 피격 (FAIL) 🚨", True, (240, 50, 50))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = font_sub.render(sub_text, True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             

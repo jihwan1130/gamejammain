@@ -115,12 +115,23 @@ class EnergyGridGame:
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((5, 15, 15, 220))
             virtual_surf.blit(overlay, (0, 0))
+            
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             if self.state == "SUCCESS":
                 msg = font_main.render("■ 파이프라인 전력망 재라우팅 완수 (SUCCESS) ■", True, (100, 255, 150))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = font_sub.render(sub_text, True, WHITE)
             else:
                 msg = font_main.render("🚨 회로 단선 배전반 파손 (FAIL) 🚨", True, (240, 50, 50))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = font_sub.render(sub_text, True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             

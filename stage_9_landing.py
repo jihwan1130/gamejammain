@@ -303,7 +303,17 @@ class ReverseThrustDecelerationGame:
             pygame.draw.line(virtual_surf, white, (panel_rect.right - 1, panel_rect.top), (panel_rect.right - 1 - 15, panel_rect.top), 3)
             pygame.draw.line(virtual_surf, white, (panel_rect.right - 1, panel_rect.top), (panel_rect.right - 1, panel_rect.top + 15), 3)
             
-            sub = self.font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, white)
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
+            sub = self.font_sub.render(sub_text, True, white)
             
             virtual_surf.blit(msg, (500 - msg.get_width()//2, panel_y + 45))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, panel_y + 110))

@@ -253,12 +253,23 @@ class FireGame:
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((15, 10, 5, 210))
             virtual_surf.blit(overlay, (0, 0))
+            
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
             if self.state == "SUCCESS":
                 msg = font_main.render("■ 화재 진압 성공 (SUCCESS) ■", True, (70, 220, 70))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = font_sub.render(sub_text, True, WHITE)
             else:
                 msg = font_main.render("🚨 화재 제어 실패 - 원자로 과열 (FAIL) 🚨", True, (220, 60, 40))
-                sub = font_sub.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, WHITE)
+                sub = font_sub.render(sub_text, True, WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
             virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
             

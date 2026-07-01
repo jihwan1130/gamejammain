@@ -187,14 +187,28 @@ class RogueRobotGame:
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
             overlay.fill((15, 10, 5, 210))
             virtual_surf.blit(overlay, (0, 0))
+            
+            is_campaign = False
+            settings = get_main_val('settings')
+            if settings and settings.is_campaign:
+                is_campaign = True
+                
+            if is_campaign:
+                sub_control_text = "[ ENTER: 계속 진행 ]"
+            else:
+                sub_control_text = "[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]"
+                
+            sub_control = font_sub.render(sub_control_text, True, WHITE)
+            
             if self.state == "SUCCESS":
                 msg = font_main.render("■ 위협 로봇 전원 사살 (SUCCESS) ■", True, (70, 220, 70))
                 sub = font_sub.render("경찰 크루의 신속한 저격으로 거주 구역이 개방되었습니다.", True, WHITE)
             else:
                 msg = font_main.render("🚨 거주 구역 전면 폐쇄 (FAIL) 🚨", True, (220, 60, 40))
                 sub = font_sub.render("시간 초과로 경찰이 부상을 입었으며 선내 정신력이 파손되었습니다.", True, WHITE)
-            virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
-            virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
+            virtual_surf.blit(msg, (500 - msg.get_width()//2, 300))
+            virtual_surf.blit(sub, (500 - sub.get_width()//2, 350))
+            virtual_surf.blit(sub_control, (500 - sub_control.get_width()//2, 400))
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
             
