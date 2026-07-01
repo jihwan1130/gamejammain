@@ -826,6 +826,9 @@ def go_to_game():
         pygame.mixer.music.fadeout(1000)
     except:
         pass
+    # 자원 초기화
+    if hasattr(settings, 'resources_game') and settings.resources_game:
+        settings.resources_game.reset()
     # 캠페인 시작 (DAY 0부터 진행)
     settings.current_day = 0
     settings.is_campaign = True
@@ -1686,6 +1689,17 @@ def main():
             elif settings.state == "METEOR_GAME":
                 meteor_game.start_ticks -= real_dt
                 
+        # Check for resource depletion game over
+        if settings.is_campaign and settings.state != "RESOURCE_DEPLETED":
+            if hasattr(settings, 'resources_game') and settings.resources_game:
+                res = settings.resources_game.resources
+                if res.get("산소", 80) <= 0 or res.get("전기", 80) <= 0 or res.get("정신력", 80) <= 0:
+                    settings.state = "RESOURCE_DEPLETED"
+                    try:
+                        play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
+                    except Exception as e:
+                        print(f"게임오버 음악 재생 실패: {e}")
+
         time_ms = current_real_time
         
         events = pygame.event.get()
@@ -1981,6 +1995,12 @@ def main():
                                 else:
                                     play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
                                 play_sfx("sfx_change")
+            elif settings.state == "RESOURCE_DEPLETED":
+                if event.type == pygame.KEYDOWN:
+                    if event.key in [pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE]:
+                        play_sfx("sfx_end")
+                        go_to_main_menu()
+                        continue
             elif settings.state == "RESOURCE_GAME":
                 resources_game.handle_event(event)
             elif settings.state == "METEOR_GAME":
@@ -2549,6 +2569,44 @@ def main():
             meteor_game.draw(settings.screen)
         elif settings.state == "RESOURCE_GAME":
             resources_game.draw(settings.screen)
+        elif settings.state == "RESOURCE_DEPLETED":
+            # Draw Resource Depleted Game Over screen!
+            # 1. Dark overlay/background
+            settings.screen.fill((10, 10, 20))
+            
+            # Draw red borders
+            pygame.draw.rect(settings.screen, (255, 60, 40), (15, 15, settings.width - 30, settings.height - 30), 2)
+            
+            # 2. Main Title
+            font_end = get_scaled_font(28, is_korean=True)
+            font_sub = get_scaled_font(18, is_korean=True)
+            
+            msg = "🚨 GAME OVER 🚨"
+            desc_text = "자원이 부족하여 모두 사망했습니다."
+            sub_text = "[ ENTER / ESC: 메인 메뉴로 ]"
+            
+            msg_surf = font_end.render(msg, True, (255, 60, 40))
+            msg_rect = msg_surf.get_rect(center=(settings.width // 2, settings.height // 2 - 40))
+            
+            desc_surf = font_sub.render(desc_text, True, (240, 180, 180))
+            desc_rect = desc_surf.get_rect(center=(settings.width // 2, settings.height // 2 + 10))
+            
+            sub_surf = font_sub.render(sub_text, True, (255, 255, 255))
+            sub_rect = sub_surf.get_rect(center=(settings.width // 2, settings.height // 2 + 60))
+            
+            # Panel box
+            box_w = int(settings.width * 0.6)
+            box_h = 180
+            box_rect = pygame.Rect(settings.width//2 - box_w//2, settings.height//2 - box_h//2, box_w, box_h)
+            
+            # Backplate
+            pygame.draw.rect(settings.screen, (15, 8, 3, 240), box_rect)
+            pygame.draw.rect(settings.screen, (255, 60, 40), box_rect, 2)
+            pygame.draw.rect(settings.screen, (255, 60, 40), (box_rect.x + 4, box_rect.y + 4, box_rect.width - 8, box_rect.height - 8), 1)
+            
+            settings.screen.blit(msg_surf, msg_rect)
+            settings.screen.blit(desc_surf, desc_rect)
+            settings.screen.blit(sub_surf, sub_rect)
         else:
             if settings.state in stage_mappings:
                 stage_mappings[settings.state].draw(settings.screen)
