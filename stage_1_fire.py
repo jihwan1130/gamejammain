@@ -1,11 +1,20 @@
-import pygame, random, math
+import pygame, random, math, sys, os
+
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
 
 class FireGame:
     def __init__(self):
         # Load assets once at startup
         self.bg_img = None
         try:
-            import os
             bg_path = os.path.join("assets", "fire_map.png")
             if os.path.exists(bg_path):
                 raw_bg = pygame.image.load(bg_path).convert()
@@ -18,7 +27,6 @@ class FireGame:
         self.fire_frames_medium = []
         self.fire_frames_small = []
         try:
-            import os
             from PIL import Image, ImageSequence
             gif_path = os.path.join("assets", "fire.gif")
             if os.path.exists(gif_path):
@@ -40,7 +48,6 @@ class FireGame:
 
         self.water_sfx = None
         try:
-            import os
             water_sfx_path = os.path.join("assets", "watersound.MP3")
             if os.path.exists(water_sfx_path):
                 self.water_sfx = pygame.mixer.Sound(water_sfx_path)
@@ -96,9 +103,11 @@ class FireGame:
             mouse_pressed = pygame.mouse.get_pressed()[0]
             if mouse_pressed:
                 mx, my = pygame.mouse.get_pos()
-                from main import settings, play_sfx
-                vmx = int(mx * 1000 / settings.width)
-                vmy = int(my * 700 / settings.height)
+                settings = get_main_val('settings')
+                width = settings.width if settings else 1000
+                height = settings.height if settings else 700
+                vmx = int(mx * 1000 / width)
+                vmy = int(my * 700 / height)
                 
                 hit_any = False
                 for f in self.fires[:]:
@@ -114,11 +123,14 @@ class FireGame:
                     self.sfx_timer -= dt
                     if self.sfx_timer <= 0:
                         if self.water_sfx:
-                            from main import settings
-                            self.water_sfx.set_volume(settings.volume * 0.8)  # 20% volume reduction
+                            settings = get_main_val('settings')
+                            vol = settings.volume if settings else 0.5
+                            self.water_sfx.set_volume(vol * 0.8)  # 20% volume reduction
                             self.water_sfx.play()
                         else:
-                            play_sfx("sfx_click")
+                            play_sfx = get_main_val('play_sfx')
+                            if play_sfx:
+                                play_sfx("sfx_click")
                         self.sfx_timer = 0.15
                 else:
                     self.sfx_timer = 0.0
@@ -133,8 +145,10 @@ class FireGame:
                 if len(self.fires) > 0:
                     self.state = "FAIL"
                     try:
-                        from main import play_music_track, GAMEOVER_MUSIC_PATH
-                        play_music_track(GAMEOVER_MUSIC_PATH, fade_ms=0, loops=0)
+                        play_music_track = get_main_val('play_music_track')
+                        gameover_music = get_main_val('GAMEOVER_MUSIC_PATH', os.path.join("assets", "gameover.mp3"))
+                        if play_music_track and gameover_music:
+                            play_music_track(gameover_music, fade_ms=0, loops=0)
                     except Exception as e:
                         print(f"게임오버 음악 재생 실패: {e}")
                 else:
@@ -144,34 +158,43 @@ class FireGame:
         pass
         
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        settings = get_main_val('settings')
+        play_sfx = get_main_val('play_sfx')
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        keyboard_sfx = get_main_val('keyboard_sfx')
+        
         if self.state not in ["PLAYING", "COUNTDOWN"]:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
-                    if keyboard_sfx:
+                    if keyboard_sfx and settings:
                         keyboard_sfx.set_volume(settings.volume)
                         keyboard_sfx.play()
                     try:
-                        from main import play_music_track, FIRE_MUSIC_PATH
-                        play_music_track(FIRE_MUSIC_PATH, fade_ms=0)
+                        play_music_track = get_main_val('play_music_track')
+                        fire_music = get_main_val('FIRE_MUSIC_PATH', os.path.join("assets", "firefirefire.MP3"))
+                        if play_music_track and fire_music:
+                            play_music_track(fire_music, fade_ms=0)
                     except Exception as e:
                         print(f"화재진압 음악 재생 실패: {e}")
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
-                
-        pass
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
                 
     def draw(self, surface):
-        from visual_effects import draw_terminal_hud
-        from main import CRT_GREEN, WHITE, get_scaled_font
+        CRT_GREEN = get_main_val('CRT_GREEN', (20, 220, 40))
+        WHITE = get_main_val('WHITE', (255, 255, 255))
+        get_scaled_font = get_main_val('get_scaled_font')
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
@@ -241,15 +264,17 @@ class FireGame:
             
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
         
-        # Draw HUD directly on screen surface for perfect resolution and scaling (Matching stage_10_rocket style)
-        from main import settings
+        # Draw HUD directly on screen surface for perfect resolution and scaling
+        settings = get_main_val('settings')
+        width = settings.width if settings else surface.get_width()
+        height = settings.height if settings else surface.get_height()
         
         # 1. Draw game boundaries
-        pygame.draw.rect(surface, CRT_GREEN, (15, 45, settings.width - 30, settings.height - 85), 2)
+        pygame.draw.rect(surface, CRT_GREEN, (15, 45, width - 30, height - 85), 2)
         
         # 2. Draw progress bar
         time_ratio = max(0.0, (self.limit_time - self.elapsed_time) / self.limit_time)
-        bar_max_w = settings.width // 2 - 60
+        bar_max_w = width // 2 - 60
         bar_h = 16
         bar_x = 30
         bar_y = 22
@@ -260,12 +285,15 @@ class FireGame:
             pygame.draw.rect(surface, bar_color, (bar_x + 2, bar_y + 2, fill_w - 4, bar_h - 4))
             
         # 3. Draw HUD energy blocks and text
-        font_hud = get_scaled_font(16, is_korean=True)
+        if get_scaled_font:
+            font_hud = get_scaled_font(16, is_korean=True)
+        else:
+            font_hud = pygame.font.SysFont("malgungothic", 16, bold=True)
+            
         fires_text = "FIRES: "
         fires_lbl = font_hud.render(fires_text, True, CRT_GREEN)
         
-        # Match layout of stage_10_rocket
-        start_x = settings.width - 200
+        start_x = width - 200
         fires_lbl_x = start_x - fires_lbl.get_width() - 10
         fires_lbl_y = 20
         surface.blit(fires_lbl, (fires_lbl_x, fires_lbl_y))
@@ -278,7 +306,6 @@ class FireGame:
             pygame.draw.rect(surface, CRT_GREEN, (bx, by, 16, 12), 1)
 
 if __name__ == "__main__":
-    import sys
     pygame.init()
     screen = pygame.display.set_mode((1000, 700))
     clock = pygame.time.Clock()

@@ -1,47 +1,31 @@
 import pygame
 import sys
 import random
+import math
 import os
+
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
 
 from visual_effects import draw_terminal_hud
 
-class PathogenQuarantineGame:
+class CrewCalmGame:
     def __init__(self):
         # 색상 정의
-        self.MINT = (80, 220, 140)
-        self.DARK_MINT = (5, 25, 15)
-        self.WHITE = (240, 255, 245)
-        self.SHADOW_BLACK = (10, 15, 10)
-        self.RED = (240, 60, 60)
-        self.BLUE = (60, 150, 240)
+        self.BLACK = (10, 10, 15)
+        self.WHITE = (255, 255, 255)
+        self.RED = (255, 80, 80)
+        self.GREEN = (80, 255, 80)
+        self.GRAY = (50, 50, 50)
         
-        # 폰트 로드 및 정적 텍스트 캐싱 (최적화: 매 프레임 렌더링 방지)
-        try:
-            from main import get_scaled_font
-            self.font_main = get_scaled_font(24, is_korean=True)
-            self.font_sub = get_scaled_font(18, is_korean=True)
-        except Exception:
-            self.font_main = pygame.font.SysFont("malgungothic", 24, bold=True)
-            self.font_sub = pygame.font.SysFont("malgungothic", 18)
-            
-        # 정적 가이드 텍스트 캐싱 (성능 향상)
-        self.txt_guide_surf = self.font_main.render("SYSTEM VIRUS INTRUSION DETECTED", True, self.WHITE)
-        self.txt_job_surf = self.font_sub.render("CONTROLS: [F] 위쪽 바이러스 | [J] 아래쪽 바이러스", True, self.MINT)
-        self.txt_life_title_surf = self.font_sub.render("DEFENSE SECURITY LEVEL : ", True, self.WHITE)
-        
-        # 판정 피드백 캐시 변수
-        self.cached_feedback_text = ""
-        self.cached_feedback_surf = None
-        
-        # 밸런스 및 배치 계수
-        self.lane_top_y = 320
-        self.lane_bottom_y = 440
-        self.hit_zone_x = 200      # 왼쪽 판정선 위치
-        self.hit_radius = 30       # PERFECT/GREAT 판정 범위
-        self.miss_zone_radius = 70 # 이 범위 밖에 있거나 없으면 허공 노트
-        self.max_lives = 3
-        self.limit_time = 30.0
-        
+        # 1. 배경 이미지 로드 (환자 구역)
         self.bg_img = None
         try:
             bg_path = os.path.join("assets", "doctorhouse.png")
@@ -51,200 +35,185 @@ class PathogenQuarantineGame:
         except Exception as e:
             print(f"doctorhouse.png 로드 실패: {e}")
             
+        # 폰트 로딩 및 텍스트 캐싱 최적화
+        get_scaled_font = get_main_val('get_scaled_font')
+        if get_scaled_font:
+            self.font = get_scaled_font(24, is_korean=True)
+            self.title_font = get_scaled_font(36, is_korean=True)
+        else:
+            self.font = pygame.font.SysFont("malgungothic", 24)
+            self.title_font = pygame.font.SysFont("malgungothic", 36, bold=True)
+            
+        # 정적 텍스트 렌더링 캐싱
+        self.txt_gauge_label = self.font.render("진정제 주입 중...", True, self.BLACK)
+        
+        # 게임 상수
+        self.target_radius = 45  # 기존 40에서 조금 키움
+        self.max_progress = 180
+        self.limit_time = 15.0  # 15초 제한시간
+        
         self.reset()
         
     def reset(self):
-        self.lives = self.max_lives
+        # 날뛰는 승무원 위치 및 움직임 매개변수
+        self.target_x = 500
+        self.target_y = 350
+        self.angle = 0
+        self.speed = 6.5  # 1000x700에 맞춰 속도 소폭 상향
+        self.change_dir_timer = 0
+        self.dx = 1
+        self.dy = 1
+        
+        # 타이머 및 게이지
+        self.progress = 0
         self.start_ticks = pygame.time.get_ticks()
         self.elapsed_time = 0.0
-        self.state = "PLAYING" # PLAYING, SUCCESS, FAIL
         
-        self.viruses = []
-        self.spawn_timer = 0
-        self.spawn_delay = 45 # 바이러스 생성 주기 (프레임 단위)
-        
-        self.hit_feedback = ""
-        self.feedback_timer = 0
-        self.top_pressed = False
-        self.bottom_pressed = False
+        self.state = "PLAYING"  # PLAYING, SUCCESS, FAIL
+        self.is_tracking = False
         
     def update(self):
         if self.state == "PLAYING":
             self.elapsed_time = (pygame.time.get_ticks() - self.start_ticks) / 1000.0
             
-            # 1. 바이러스 자동 생성
-            self.spawn_timer += 1
-            if self.spawn_timer >= self.spawn_delay:
-                self.spawn_timer = 0
-                lane = random.choice(["top", "bottom"])
-                # [x_pos, lane, processed_flag]
-                self.viruses.append([1000 + 20, lane, False])
+            # 1. 승무원(과녁) 무작위 AI 이동 패턴
+            self.change_dir_timer -= 1
+            if self.change_dir_timer <= 0:
+                self.change_dir_timer = random.randint(30, 60)
+                self.angle = random.uniform(0, 2 * math.pi)
+                self.dx = math.cos(self.angle) * self.speed
+                self.dy = math.sin(self.angle) * self.speed
                 
-            # 2. 바이러스 이동 및 노치고 지나간 경우 처리
-            for v in self.viruses:
-                v[0] -= 6  # 이동 속도
+            # 위치 업데이트
+            self.target_x += self.dx
+            self.target_y += self.dy
+            
+            # 벽 충돌 이탈 방지 (1000, 700 가상 해상도 기준)
+            if self.target_x < self.target_radius + 50 or self.target_x > 950 - self.target_radius:
+                self.dx *= -1
+                self.target_x = max(self.target_radius + 50, min(self.target_x, 950 - self.target_radius))
+            if self.target_y < self.target_radius + 140 or self.target_y > 650 - self.target_radius:
+                self.dy *= -1
+                self.target_y = max(self.target_radius + 140, min(self.target_y, 650 - self.target_radius))
                 
-                # 타이밍을 놓쳐서 판정선을 완전히 지나쳐 버린 경우
-                if v[0] < self.hit_zone_x - self.hit_radius and not v[2]:
-                    v[2] = True
-                    self.lives -= 1
-                    self.set_feedback("MISS (MISSED)")
+            # 2. 마우스 충돌 감지 (가상 좌표 기준 마우스 트래킹 판정)
+            settings = get_main_val('settings')
+            width = settings.width if settings else 1000
+            height = settings.height if settings else 700
+            
+            mx, my = pygame.mouse.get_pos()
+            vmx = int(mx * 1000 / width)
+            vmy = int(my * 700 / height)
+            
+            distance = math.hypot(vmx - self.target_x, vmy - self.target_y)
+            self.is_tracking = distance <= self.target_radius
+            
+            if self.is_tracking:
+                self.progress += 3  # 과녁 안에 있으면 게이지 상승
+            else:
+                if self.progress > 0:
+                    self.progress -= 0.5  # 벗어나면 게이지 감소
                     
-            # 화면 밖으로 완전히 나간 바이러스 정리 (최적화)
-            if self.viruses and self.viruses[0][0] <= 50:
-                self.viruses = [v for v in self.viruses if v[0] > 50]
-                
-            # 승리/패배 조건 확인
-            if self.elapsed_time >= self.limit_time and self.lives > 0:
+            # 3. 승리 / 패배 조건 판단
+            if self.progress >= self.max_progress:
                 self.state = "SUCCESS"
-            elif self.lives <= 0:
+            elif self.elapsed_time >= self.limit_time:
                 self.state = "FAIL"
                 
-    def set_feedback(self, text):
-        """판정 피드백 텍스트를 캐싱하여 렌더링 부하를 줄임 (최적화)"""
-        self.hit_feedback = text
-        self.feedback_timer = 30
-        if self.cached_feedback_text != text:
-            self.cached_feedback_text = text
-            fb_color = self.MINT if "PERFECT" in text else self.RED
-            self.cached_feedback_surf = self.font_main.render(text, True, fb_color)
-            
-    def check_hit(self, lane):
-        from main import play_sfx
-        # 아직 처리되지 않은 해당 레인 바이러스 필터링
-        target = [v for v in self.viruses if v[1] == lane and not v[2]]
-        
-        if target:
-            # 판정선 HIT_ZONE_X(200)에 가장 가까운 바이러스 검출
-            closest = min(target, key=lambda x: abs(x[0] - self.hit_zone_x))
-            distance = abs(closest[0] - self.hit_zone_x)
-            
-            if distance <= self.hit_radius:  # PERFECT
-                closest[2] = True
-                self.set_feedback("PERFECT")
-                play_sfx("sfx_click")
-            elif distance <= self.miss_zone_radius:  # BAD
-                closest[2] = True
-                self.lives -= 1
-                self.set_feedback("BAD")
-            else:  # 허공 노트 (너무 멀 때)
-                self.lives -= 1
-                self.set_feedback("MISS (EMPTY PRESS)")
-        else:  # 화면에 해당 채보가 아예 없는데 누른 경우
-            self.lives -= 1
-            self.set_feedback("MISS (EMPTY PRESS)")
-            
     def handle_input(self):
         pass
         
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        play_sfx = get_main_val('play_sfx')
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        keyboard_sfx = get_main_val('keyboard_sfx')
         
-        # 키 감지 리셋 (임팩트 그리기용)
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_f:
-                self.top_pressed = False
-            if event.key == pygame.K_j:
-                self.bottom_pressed = False
-                
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.set_volume(vol)
                         keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
-            elif event.key == pygame.K_f:  # 위쪽 레인 키
-                self.top_pressed = True
-                self.check_hit("top")
-            elif event.key == pygame.K_j:  # 아래쪽 레인 키
-                self.bottom_pressed = True
-                self.check_hit("bottom")
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
                 
     def draw(self, surface):
-        from main import settings, WHITE, get_scaled_font
+        settings = get_main_val('settings')
+        width = settings.width if settings else surface.get_width()
+        height = settings.height if settings else surface.get_height()
         
-        # 가상 서페이스 (1000x700) 생성 및 배경 그리기
+        # 1000x700 가상 해상도 드로잉
         virtual_surf = pygame.Surface((1000, 700))
         if self.bg_img:
             virtual_surf.blit(self.bg_img, (0, 0))
             # 가독성을 높이기 위해 어두운 반투명 오버레이 추가
             dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            dim_overlay.fill((5, 20, 10, 160))  # R, G, B, Alpha
+            dim_overlay.fill((5, 10, 20, 160))
             virtual_surf.blit(dim_overlay, (0, 0))
         else:
-            virtual_surf.fill(self.DARK_MINT)
+            virtual_surf.fill(self.BLACK)
         
-        # 캐싱된 정적 안내 텍스트 출력
-        virtual_surf.blit(self.txt_guide_surf, (500 - self.txt_guide_surf.get_width()//2, 80))
-        virtual_surf.blit(self.txt_job_surf, (500 - self.txt_job_surf.get_width()//2, 130))
+        # 마우스 가상 좌표
+        mx, my = pygame.mouse.get_pos()
+        vmx = int(mx * 1000 / width)
+        vmy = int(my * 700 / height)
         
-        # 기회(Defense Security Level) 표시부 그리기 (동적 중앙 정렬로 겹침 방지)
-        life_str = "".join(["■ " for _ in range(max(0, self.lives))]) + "".join(["X " for _ in range(self.max_lives - max(0, self.lives))])
-        txt_life = self.font_main.render(life_str, True, self.RED if self.lives == 1 else self.MINT)
+        # 1. 상단 HUD 정보
+        time_left = max(0.0, self.limit_time - self.elapsed_time)
+        ui_text = self.font.render(f"남은 시간: {time_left:.1f}초 | 직업: 의사 (마우스로 승무원 추적)", True, self.WHITE)
+        virtual_surf.blit(ui_text, (50, 80))
         
-        title_w = self.txt_life_title_surf.get_width()
-        life_w = txt_life.get_width()
-        total_w = title_w + 10 + life_w
-        start_x = 500 - total_w // 2
+        # 2. 진정제 주입 게이지 바
+        pygame.draw.rect(virtual_surf, self.GRAY, (500 - 150, 80, 300, 25))
+        gauge_width = int((self.progress / self.max_progress) * 300)
+        gauge_color = self.GREEN if self.is_tracking else self.RED
+        pygame.draw.rect(virtual_surf, gauge_color, (500 - 150, 80, gauge_width, 25))
         
-        virtual_surf.blit(self.txt_life_title_surf, (start_x, 190))
-        virtual_surf.blit(txt_life, (start_x + title_w + 10, 185))
+        # 게이지 내부 텍스트 blit
+        virtual_surf.blit(self.txt_gauge_label, (500 - self.txt_gauge_label.get_width() // 2, 81))
         
-        # 두 개의 레인(트랙) 그리기
-        pygame.draw.line(virtual_surf, self.SHADOW_BLACK, (0, self.lane_top_y), (1000, self.lane_top_y), 4)
-        pygame.draw.line(virtual_surf, self.SHADOW_BLACK, (0, self.lane_bottom_y), (1000, self.lane_bottom_y), 4)
+        # 3. 날뛰는 승무원 (과녁) 그리기
+        pygame.draw.circle(virtual_surf, self.RED, (int(self.target_x), int(self.target_y)), self.target_radius, 2)
+        pygame.draw.circle(virtual_surf, self.RED, (int(self.target_x), int(self.target_y)), 8)
         
-        # 판정선 서클
-        pygame.draw.circle(virtual_surf, self.MINT, (self.hit_zone_x, self.lane_top_y), 20, 2)
-        pygame.draw.circle(virtual_surf, self.MINT, (self.hit_zone_x, self.lane_bottom_y), 20, 2)
-        
-        # 키 입력 순간 판정선 임팩트 효과
-        if self.top_pressed:
-            pygame.draw.circle(virtual_surf, self.WHITE, (self.hit_zone_x, self.lane_top_y), 28, 3)
-        if self.bottom_pressed:
-            pygame.draw.circle(virtual_surf, self.WHITE, (self.hit_zone_x, self.lane_bottom_y), 28, 3)
+        if self.is_tracking:
+            pygame.draw.circle(virtual_surf, self.GREEN, (int(self.target_x), int(self.target_y)), self.target_radius - 5, 3)
             
-        # 다가오는 바이러스(노트) 그리기
-        for v in self.viruses:
-            if not v[2]:  # 처리되지 않은 바이러스만 렌더링
-                y_pos = self.lane_top_y if v[1] == "top" else self.lane_bottom_y
-                color = self.RED if v[1] == "top" else self.BLUE
-                pygame.draw.circle(virtual_surf, color, (v[0], y_pos), 15)
-                # 십자 디테일 박스
-                pygame.draw.rect(virtual_surf, self.WHITE, (v[0]-4, y_pos-19, 8, 38), 1)
-                pygame.draw.rect(virtual_surf, self.WHITE, (v[0]-19, y_pos-4, 38, 8), 1)
-                
-        # 판정 피드백 텍스트 출력 (텍스트 렌더링 캐싱 최적화 적용)
-        if self.feedback_timer > 0 and self.cached_feedback_surf:
-            virtual_surf.blit(self.cached_feedback_surf, (self.hit_zone_x - self.cached_feedback_surf.get_width()//2, self.lane_top_y - 90))
-            self.feedback_timer -= 1
+        # 4. 의사 주사기 커서 대용 (마우스 위치에 십자선 그리기)
+        if self.state == "PLAYING":
+            pygame.draw.line(virtual_surf, self.WHITE, (vmx - 15, vmy), (vmx + 15, vmy), 2)
+            pygame.draw.line(virtual_surf, self.WHITE, (vmx, vmy - 15), (vmx, vmy + 15), 2)
             
-        # HUD 테두리 및 진행 시간 드로잉
-        draw_terminal_hud(virtual_surf, "ANTI-VIRUS DEFENSE SYSTEM", self.limit_time, self.elapsed_time, self.MINT)
+        # 공통 터미널 HUD 그리기
+        draw_terminal_hud(virtual_surf, "CREW PSYCHOLOGICAL CRISIS INTERVENTION", self.limit_time, self.elapsed_time, self.RED)
         
-        # 게임 결과 오버레이
+        # 결과 오버레이
         if self.state != "PLAYING":
             overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            overlay.fill((5, 20, 10, 220))
+            overlay.fill((10, 10, 15, 220))
             virtual_surf.blit(overlay, (0, 0))
             if self.state == "SUCCESS":
-                msg = self.font_main.render("■ 방화벽 유지 성공 (SUCCESS) ■", True, self.MINT)
-                sub = self.font_sub.render("30초 동안 메인프레임을 안전하게 방어해 냈습니다.", True, self.WHITE)
+                msg = self.title_font.render("■ 성공: 승무원을 진정시켰습니다. ■", True, self.GREEN)
+                sub = self.font.render("[ ENTER: 다시 시작 | ESC: 미니게임 선택으로 돌아가기 ]", True, self.WHITE)
             else:
-                msg = self.font_main.render("🚨 방어선 돌파 - 시스템 멜트다운 (FAIL) 🚨", True, self.RED)
-                sub = self.font_sub.render("허용된 모든 보안 기회를 소진했습니다. 방화벽이 해제됩니다.", True, self.WHITE)
+                msg = self.title_font.render("🚨 실패: 승무원의 부상이 고조되었습니다. 🚨", True, self.RED)
+                sub = self.font.render("페널티: 전체 정신력 -20 | [ ENTER: 재시도 | ESC: 복귀 ]", True, self.WHITE)
             virtual_surf.blit(msg, (500 - msg.get_width()//2, 325))
-            virtual_surf.blit(sub, (500 - sub.get_width()//2, 370))
+            virtual_surf.blit(sub, (500 - sub.get_width()//2, 380))
             
         # 메인 게임 스케일링 블릿
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
@@ -253,11 +222,21 @@ if __name__ == "__main__":
     pygame.init()
     screen = pygame.display.set_mode((1000, 700))
     clock = pygame.time.Clock()
-    game = PathogenQuarantineGame()
+    game = CrewCalmGame()
     from visual_effects import TerminalFilter
     filter_crt = TerminalFilter(1000, 700)
     
-    # 임시 키 제어용 자체 루프
+    class MockSettings:
+        width = 1000
+        height = 700
+    import sys
+    sys.modules['main'] = sys.modules[__name__]
+    settings = MockSettings()
+    WHITE = (255, 255, 255)
+    def play_sfx(name): pass
+    def go_to_minigames(): pygame.quit(); sys.exit()
+    keyboard_sfx = None
+    
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

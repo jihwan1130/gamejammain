@@ -1,5 +1,15 @@
 import pygame, random, sys, os
 
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
+
 class StellarMemoryGame:
     def __init__(self):
         self.symbols = ["Ω", "Ψ", "Φ", "Ω", "Ψ", "Φ"]
@@ -35,8 +45,9 @@ class StellarMemoryGame:
                     if self.cards[idx1]["val"] == self.cards[idx2]["val"]:
                         self.cards[idx1]["matched"] = True
                         self.cards[idx2]["matched"] = True
-                        from main import play_sfx
-                        play_sfx("sfx_click")
+                        play_sfx = get_main_val('play_sfx')
+                        if play_sfx:
+                            play_sfx("sfx_click")
                     else:
                         self.cards[idx1]["flipped"] = False
                         self.cards[idx2]["flipped"] = False
@@ -52,30 +63,41 @@ class StellarMemoryGame:
         pass
         
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
+        play_sfx = get_main_val('play_sfx')
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        keyboard_sfx = get_main_val('keyboard_sfx')
+        
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.set_volume(vol)
                         keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
                 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if len(self.selected_indices) < 2:
                 mx, my = event.pos
                 # Convert mouse pos to virtual coordinates
-                vmx = int(mx * 1000 / settings.width)
-                vmy = int(my * 700 / settings.height)
+                vmx = int(mx * 1000 / width)
+                vmy = int(my * 700 / height)
                 
                 for i in range(6):
                     col = i % 3
@@ -85,12 +107,12 @@ class StellarMemoryGame:
                         if not self.cards[i]["flipped"] and not self.cards[i]["matched"]:
                             self.cards[i]["flipped"] = True
                             self.selected_indices.append(i)
-                            play_sfx("sfx_click")
+                            if play_sfx:
+                                play_sfx("sfx_click")
                             break
                             
     def draw(self, surface):
-        from visual_effects import draw_terminal_hud
-        from main import CRT_GREEN, WHITE, get_scaled_font
+        WHITE = get_main_val('WHITE', (255, 255, 255))
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
@@ -129,6 +151,7 @@ class StellarMemoryGame:
                 pygame.draw.rect(virtual_surf, (40, 110, 210), card_rect, 2)
                 pygame.draw.circle(virtual_surf, (40, 110, 210), card_rect.center, 12, 1)
                 
+        from visual_effects import draw_terminal_hud
         draw_terminal_hud(virtual_surf, "NAVIGATION MEMORY CONGRUENCE", self.limit_time, self.elapsed_time, (40, 110, 210))
         txt_info = font_sub.render("ASTRONOMER JOB BONUS: 서브루틴 오차 계산망 복사 완료. 동기화 매칭 유도", True, WHITE)
         virtual_surf.blit(txt_info, (40, 60))

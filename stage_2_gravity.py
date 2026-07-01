@@ -1,5 +1,15 @@
 import pygame, random, sys, os
 
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
+
 class GravityHullRepairGame:
     def __init__(self):
         import string
@@ -44,34 +54,37 @@ class GravityHullRepairGame:
         pass
         
     def handle_event(self, event):
-        try:
-            from main import settings, go_to_minigames, play_sfx, keyboard_sfx
-        except ImportError:
-            settings = type('MockSettings', (), {'volume': 0.5})()
-            go_to_minigames = lambda: print("Go to minigames called")
-            play_sfx = lambda name: print(f"Play SFX: {name}")
-            keyboard_sfx = None
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        play_sfx = get_main_val('play_sfx')
+        keyboard_sfx = get_main_val('keyboard_sfx')
             
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.set_volume(vol)
                         keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
             elif event.key == self.target_key:
                 # Correct key pressed
                 self.current_round += 1
-                play_sfx("sfx_click")
+                if play_sfx:
+                    play_sfx("sfx_click")
                 if self.current_round >= self.total_rounds:
                     self.state = "SUCCESS"
                 else:
@@ -81,12 +94,9 @@ class GravityHullRepairGame:
                 pass
                 
     def draw(self, surface):
-        try:
-            from main import CRT_GREEN, WHITE, get_scaled_font
-        except ImportError:
-            CRT_GREEN = (0, 255, 0)
-            WHITE = (255, 255, 255)
-            get_scaled_font = lambda f, s: f
+        CRT_GREEN = get_main_val('CRT_GREEN', (0, 255, 0))
+        WHITE = get_main_val('WHITE', (255, 255, 255))
+        get_scaled_font = get_main_val('get_scaled_font')
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
@@ -120,8 +130,7 @@ class GravityHullRepairGame:
         pygame.draw.rect(virtual_surf, theme_purple, (500 - 250, 460, int(progress_ratio * 500), 35))
         pygame.draw.rect(virtual_surf, (255, 255, 240), (500 - 250, 460, 500, 35), 2)
         
-        # Custom Terminal HUD without left-top text, and with a purple progress bar for remaining time
-        # Draw external frame borders
+        # Custom Terminal HUD
         pygame.draw.rect(virtual_surf, theme_purple, (10, 10, 1000 - 20, 700 - 20), 2)
         pygame.draw.rect(virtual_surf, theme_purple, (15, 15, 1000 - 30, 700 - 30), 1)
         

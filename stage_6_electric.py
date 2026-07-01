@@ -1,5 +1,15 @@
 import pygame, random, sys, os
 
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
+
 class HighVoltageSparkDodgeGame:
     def __init__(self):
         self.thunder_img = None
@@ -8,7 +18,6 @@ class HighVoltageSparkDodgeGame:
         try:
             t_path = os.path.join("assets", "thunder.png")
             t2_path = os.path.join("assets", "thunder2.png")
-            # 검은색 배경을 투명하게 날려주기 위해 convert() 후 set_colorkey((0, 0, 0)) 적용
             if os.path.exists(t_path):
                 self.thunder_img = pygame.image.load(t_path).convert()
                 self.thunder_img.set_colorkey((0, 0, 0))
@@ -52,8 +61,9 @@ class HighVoltageSparkDodgeGame:
                 sp["rect"].y += 9
                 if p_rect.colliderect(sp["rect"]):
                     self.state = "FAIL"
-                    from main import play_sfx
-                    play_sfx("sfx_click")
+                    play_sfx = get_main_val('play_sfx')
+                    if play_sfx:
+                        play_sfx("sfx_click")
                     break
                 if sp["rect"].y > 640:
                     self.sparks.remove(sp)
@@ -70,27 +80,35 @@ class HighVoltageSparkDodgeGame:
                 self.player_x = min(950, self.player_x + 9)
                 
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        play_sfx = get_main_val('play_sfx')
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        keyboard_sfx = get_main_val('keyboard_sfx')
+        
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.set_volume(vol)
                         keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
                 
     def draw(self, surface):
-        from visual_effects import draw_terminal_hud
-        from main import CRT_GREEN, WHITE, get_scaled_font
+        WHITE = get_main_val('WHITE', (255, 255, 255))
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
@@ -122,6 +140,7 @@ class HighVoltageSparkDodgeGame:
                 pygame.draw.rect(virtual_surf, (235, 210, 40), sp["rect"])
                 pygame.draw.rect(virtual_surf, WHITE, sp["rect"], 1)
             
+        from visual_effects import draw_terminal_hud
         draw_terminal_hud(virtual_surf, "ELECTRIC SPARKS EVASION MANEUVER", self.limit_time, self.elapsed_time, (235, 210, 40))
         txt_desc = font_sub.render("ELECTRICIAN MISSION: [A]/[D] 또는 [방향키]로 좌우 조종하여 전류 스파크를 회피하십시오!", True, WHITE)
         virtual_surf.blit(txt_desc, (40, 60))

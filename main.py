@@ -16,10 +16,10 @@ from stage_3_riot import RiotPacificationGame
 # stage_4_life.py was deprecated and integrated into stage_6_patient.py
 from stage_4_nav import StellarMemoryGame
 from stage_6_electric import HighVoltageSparkDodgeGame
-from stage_6_patient import PathogenQuarantineGame
+from stage_6_patient import CrewCalmGame
 from stage_8_grid import EnergyGridGame
 from stage_9_landing import ReverseThrustDecelerationGame
-from aim import CrewCalmGame
+from aim import PathogenQuarantineGame
 from spin import CrankLandingGame
 from day0 import Day0Manager
 from day1 import Day1Manager
@@ -1501,7 +1501,7 @@ def main():
     life_support_game = PathogenQuarantineGame()
     stellar_memory_game = StellarMemoryGame()
     electric_dodge_game = HighVoltageSparkDodgeGame()
-    quarantine_game = PathogenQuarantineGame()
+    quarantine_game = CrewCalmGame()
     energy_grid_game = EnergyGridGame()
     deceleration_game = ReverseThrustDecelerationGame()
     crew_calm_game = CrewCalmGame()
@@ -1547,6 +1547,23 @@ def main():
         "DAY_5": day_5_manager,
         "DAY_6": day_6_manager,
     }
+    
+    # 순환 참조 방지를 위해 메인 프레임워크의 settings 및 sfx 함수를 각 매니저에 직접 주입
+    for mgr in [day_0_manager, day_1_manager, day_2_manager, day_3_manager, day_4_manager, day_5_manager, day_6_manager]:
+        if mgr:
+            mgr.settings = settings
+            mgr.play_sfx = play_sfx
+            mgr.play_music_track = play_music_track
+            mgr.stage_mappings = stage_mappings
+            mgr.go_to_main_menu = go_to_main_menu
+            
+            # 사운드 경로 상수 주입
+            if 'SYSTEM_BGM_PATH' in globals():
+                mgr.SYSTEM_BGM_PATH = SYSTEM_BGM_PATH
+            if 'MINIGAME_MUSIC_PATH' in globals():
+                mgr.MINIGAME_MUSIC_PATH = MINIGAME_MUSIC_PATH
+            if 'FIRE_MUSIC_PATH' in globals():
+                mgr.FIRE_MUSIC_PATH = FIRE_MUSIC_PATH
     
     # 드래그 줌 상태 변수
     dragging_zoom = False
@@ -1932,14 +1949,18 @@ def main():
                             print(f"운석게임 음악 재생 실패: {e}")
             else:
                 if settings.state in stage_mappings:
-                    # 캠페인 모드에서 미니게임 성공 후 엔터 누르면 다음 날로 진행
-                    if (settings.is_campaign and 
-                        not settings.state.startswith("DAY_") and
-                        event.type == pygame.KEYDOWN and 
+                    # 디버깅: 엔터 키 누를 때 상태 로깅
+                    if (event.type == pygame.KEYDOWN and 
                         event.key in [pygame.K_RETURN, pygame.K_KP_ENTER]):
-                        
                         active_game = stage_mappings[settings.state]
-                        if active_game and hasattr(active_game, 'state') and active_game.state in ["SUCCESS", "WON"]:
+                        game_state = getattr(active_game, 'state', None) if active_game else None
+                        print(f"[DEBUG ENTER] state={settings.state}, is_campaign={settings.is_campaign}, game_state={game_state}")
+                        
+                        if (settings.is_campaign and 
+                            not settings.state.startswith("DAY_") and
+                            game_state in ["SUCCESS", "WON"]):
+                            
+                            print("[DEBUG ENTER] Campaign progress triggered! Moving to next day.")
                             play_sfx("sfx_click")
                             next_campaign_day()
                             continue

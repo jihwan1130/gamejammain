@@ -5,8 +5,8 @@ import math
 
 class Day5Manager:
     def __init__(self):
-        # 1. 미니게임 불러오기 (aim.py 의 CrewCalmGame)
-        from aim import CrewCalmGame
+        # 1. 미니게임 불러오기 (stage_6_patient.py 의 CrewCalmGame)
+        from stage_6_patient import CrewCalmGame
         self.minigame = CrewCalmGame()
         
         # 2. 자원 및 폰트 로드

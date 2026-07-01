@@ -2,7 +2,15 @@ import pygame
 import os
 import random
 
-
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
 
 def load_gif_frames(filepath):
     frames = []
@@ -29,8 +37,6 @@ class RogueRobotGame:
             if os.path.exists(bg_path):
                 raw_bg = pygame.image.load(bg_path).convert()
                 self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
-            else:
-                print(f"Stage_2.png 파일이 존재하지 않습니다: {bg_path}")
         except Exception as e:
             print(f"Stage_2.png 로드 실패: {e}")
             
@@ -93,7 +99,7 @@ class RogueRobotGame:
         pass
             
     def draw(self, surface):
-        from main import CRT_GREEN, WHITE, get_scaled_font
+        WHITE = get_main_val('WHITE', (255, 255, 255))
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
@@ -101,12 +107,12 @@ class RogueRobotGame:
         # Draw background
         if self.bg_img:
             virtual_surf.blit(self.bg_img, (0, 0))
-            # 분위기에 맞게 어두운 보라톤 오버레이 적용 (기존 주황색/브라운 톤에서 변경)
+            # 분위기에 맞게 어두운 보라톤 오버레이 적용
             dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            dim_overlay.fill((28, 12, 40, 180))  # R, G, B, Alpha (어두운 보라색 톤)
+            dim_overlay.fill((28, 12, 40, 180))
             virtual_surf.blit(dim_overlay, (0, 0))
         else:
-            virtual_surf.fill((20, 10, 30))  # 단색 배경도 어두운 보라색 톤으로 설정
+            virtual_surf.fill((20, 10, 30))
         
         # Fonts
         font_sub = pygame.font.SysFont("malgungothic", 18)
@@ -119,34 +125,33 @@ class RogueRobotGame:
             frames = self.ai1_frames if rtype == "ai1" else self.ai3_frames
             
             if frames:
-                # 시간에 따라 프레임 인덱스 계산
                 frame_idx = ((pygame.time.get_ticks() + offset * 50) // 100) % len(frames)
                 img = frames[frame_idx]
                 scaled_img = pygame.transform.scale(img, (r["rect"].width, r["rect"].height))
                 virtual_surf.blit(scaled_img, r["rect"])
             else:
-                # 에셋 로드 실패 시 폴백 (빨간 상자)
                 pygame.draw.rect(virtual_surf, (220, 60, 40), r["rect"])
                 pygame.draw.rect(virtual_surf, (255, 240, 220), r["rect"], 2)
                 pygame.draw.circle(virtual_surf, (255, 240, 220), r["rect"].center, 6)
             
-        # Draw crosshair (보라색 톤에 맞춘 네온 핑크/퍼플 크로스헤어로 변경)
-        from main import settings
+        # Draw crosshair
+        settings = get_main_val('settings')
+        width = settings.width if settings else surface.get_width()
+        height = settings.height if settings else surface.get_height()
+        
         mx, my = pygame.mouse.get_pos()
-        vmx = int(mx * 1000 / settings.width)
-        vmy = int(my * 700 / settings.height)
+        vmx = int(mx * 1000 / width)
+        vmy = int(my * 700 / height)
         pygame.draw.circle(virtual_surf, (180, 100, 255), (vmx, vmy), 18, 1)
         pygame.draw.circle(virtual_surf, (255, 60, 150), (vmx, vmy), 3)
         
-        # 3. HUD 및 시간 프로그레스 바 렌더링 (운석 소나기 스타일)
-        # 테두리 색상: 어두운 보라색 톤
+        # 3. HUD 및 시간 프로그레스 바 렌더링
         COLOR_PURPLE = (120, 40, 180)
         
-        # 외부 프레임 테두리 직접 그리기
         pygame.draw.rect(virtual_surf, COLOR_PURPLE, (10, 10, 980, 680), 2)
         pygame.draw.rect(virtual_surf, COLOR_PURPLE, (15, 15, 970, 670), 1)
         
-        # 프로그레스 바 시간 표시 (운석 소나기 스타일 - 왼쪽 정렬)
+        # 프로그레스 바 시간 표시
         time_ratio = max(0.0, (self.limit_time - self.elapsed_time) / self.limit_time)
         bar_max_w = 400
         bar_h = 16
@@ -156,11 +161,10 @@ class RogueRobotGame:
         pygame.draw.rect(virtual_surf, COLOR_PURPLE, (bar_x, bar_y, bar_max_w, bar_h), 2)
         fill_w = int(bar_max_w * time_ratio)
         if fill_w > 0:
-            # 시간에 따른 게이지 색상 변경 (보라색 -> 네온 핑크 -> 빨간색)
             bar_color = (150, 80, 220) if time_ratio > 0.5 else ((220, 100, 150) if time_ratio > 0.2 else (255, 60, 40))
             pygame.draw.rect(virtual_surf, bar_color, (bar_x + 2, bar_y + 2, fill_w - 4, bar_h - 4))
         
-        # 4. 로봇 잔여 수량 인디케이터 그리기 (목숨 개수 스타일)
+        # 4. 로봇 잔여 수량 인디케이터 그리기
         alive_count = len(self.robots)
         total_count = 10
         indicator_w = 18
@@ -171,11 +175,10 @@ class RogueRobotGame:
         
         for i in range(total_count):
             bx = start_x + i * (indicator_w + gap)
-            # 살아있는 로봇은 보라색, 죽은 로봇은 검정색으로 표시
             if i < alive_count:
-                color = (180, 100, 255)  # 보라색
+                color = (180, 100, 255)
             else:
-                color = (10, 5, 20)      # 검정색
+                color = (10, 5, 20)
                 
             pygame.draw.rect(virtual_surf, color, (bx, indicator_y, indicator_w, indicator_h))
             pygame.draw.rect(virtual_surf, COLOR_PURPLE, (bx, indicator_y, indicator_w, indicator_h), 1)
@@ -196,32 +199,43 @@ class RogueRobotGame:
         pygame.transform.scale(virtual_surf, surface.get_size(), surface)
             
     def handle_event(self, event):
-        from main import settings, go_to_minigames, play_sfx, keyboard_sfx
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        width = settings.width if settings else 1000
+        height = settings.height if settings else 700
+        play_sfx = get_main_val('play_sfx')
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        keyboard_sfx = get_main_val('keyboard_sfx')
+        
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.set_volume(vol)
                         keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
                 
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.gun2_sfx:
-                self.gun2_sfx.set_volume(settings.volume)
+                self.gun2_sfx.set_volume(vol)
                 self.gun2_sfx.play()
                 
             mx, my = event.pos
-            vmx = int(mx * 1000 / settings.width)
-            vmy = int(my * 700 / settings.height)
+            vmx = int(mx * 1000 / width)
+            vmy = int(my * 700 / height)
             for r in self.robots[:]:
                 if r["rect"].collidepoint((vmx, vmy)):
                     self.robots.remove(r)

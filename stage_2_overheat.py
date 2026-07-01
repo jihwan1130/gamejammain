@@ -1,9 +1,18 @@
-import pygame, random, sys
+import pygame, random, sys, os
+
+def get_main_val(name, default=None):
+    try:
+        import sys
+        main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+        if main_mod and hasattr(main_mod, name):
+            return getattr(main_mod, name)
+    except:
+        pass
+    return default
 
 class CoreThermalStabilizerGame:
     def __init__(self):
         self.bg_img = None
-        import os
         try:
             bg_path = os.path.join("assets", "red.jpg")
             if os.path.exists(bg_path):
@@ -12,8 +21,6 @@ class CoreThermalStabilizerGame:
         except Exception as e:
             print(f"red.jpg 로드 실패: {e}")
             
-        # 폰트 흐릿함 개선 및 변경을 위해 폰트명을 지정합니다.
-        # "malgungothic", "gulim", "dotum", "arial" 등으로 쉽게 변경하실 수 있습니다.
         self.font_name = "malgungothic" 
         self.init_fonts()
         self.reset()
@@ -32,7 +39,7 @@ class CoreThermalStabilizerGame:
         self.elapsed_time = 0
         self.limit_time = 10.0
         self.state = "INTRO" # INTRO, PLAYING, SUCCESS, FAIL
-        self.press_count = 0  # 키 연타 횟수 카운터
+        self.press_count = 0
         
     def update(self):
         if self.state == "PLAYING":
@@ -59,25 +66,26 @@ class CoreThermalStabilizerGame:
                 self.core_x += 12
                 
     def handle_event(self, event):
-        try:
-            from main import settings, go_to_minigames, play_sfx, keyboard_sfx
-        except ImportError:
-            settings = type('MockSettings', (), {'volume': 0.5})()
-            go_to_minigames = lambda: print("Go to minigames called")
-            play_sfx = lambda name: print(f"Play SFX: {name}")
-            keyboard_sfx = None
+        settings = get_main_val('settings')
+        vol = settings.volume if settings else 0.5
+        go_to_minigames = get_main_val('go_to_minigames') or get_main_val('go_to_main_menu')
+        play_sfx = get_main_val('play_sfx')
+        keyboard_sfx = get_main_val('keyboard_sfx')
             
         if self.state == "INTRO":
             btn_w, btn_h = 220, 35
             btn_rect = pygame.Rect((1000 - btn_w)//2, 430, btn_w, btn_h)
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key in [pygame.K_RETURN, pygame.K_SPACE]:
                     self.state = "PLAYING"
                     self.start_ticks = pygame.time.get_ticks()
-                    play_sfx("sfx_click")
+                    if play_sfx:
+                        play_sfx("sfx_click")
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     scr_w, scr_h = pygame.display.get_surface().get_size()
@@ -87,33 +95,33 @@ class CoreThermalStabilizerGame:
                     if btn_rect.collidepoint((vmx, vmy)):
                         self.state = "PLAYING"
                         self.start_ticks = pygame.time.get_ticks()
-                        play_sfx("sfx_click")
+                        if play_sfx:
+                            play_sfx("sfx_click")
             return
             
         if self.state != "PLAYING":
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    play_sfx("sfx_end")
-                    go_to_minigames()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_minigames:
+                        go_to_minigames()
                 elif event.key == pygame.K_RETURN:
                     self.reset()
                     if keyboard_sfx:
-                        keyboard_sfx.set_volume(settings.volume)
+                        keyboard_sfx.set_volume(vol)
                         keyboard_sfx.play()
             return
             
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                play_sfx("sfx_end")
-                go_to_minigames()
+                if play_sfx:
+                    play_sfx("sfx_end")
+                if go_to_minigames:
+                    go_to_minigames()
                 
     def draw(self, surface):
-        try:
-            from main import CRT_GREEN, WHITE, get_scaled_font
-        except ImportError:
-            CRT_GREEN = (0, 255, 0)
-            WHITE = (255, 255, 255)
-            get_scaled_font = lambda f, s: f
+        WHITE = get_main_val('WHITE', (255, 255, 255))
         
         # Draw on virtual surface
         virtual_surf = pygame.Surface((1000, 700))
@@ -121,16 +129,15 @@ class CoreThermalStabilizerGame:
         
         if self.bg_img:
             virtual_surf.blit(self.bg_img, (0, 0))
-            # 가독성을 높이기 위해 옅은 어두운 오버레이 추가
             dim_overlay = pygame.Surface((1000, 700), pygame.SRCALPHA)
-            dim_overlay.fill((20, 5, 5, 160))  # R, G, B, Alpha
+            dim_overlay.fill((20, 5, 5, 160))
             virtual_surf.blit(dim_overlay, (0, 0))
         else:
             virtual_surf.fill((35, 10, 10))
         
         # Draw safe zones & core line
         pygame.draw.rect(virtual_surf, (50, 20, 20), (150, 350 - 25, 700, 50))
-        pygame.draw.rect(virtual_surf, (60, 220, 100), (500 - 60, 350 - 25, 120, 50), 2) # Target zone
+        pygame.draw.rect(virtual_surf, (60, 220, 100), (500 - 60, 350 - 25, 120, 50), 2)
         pygame.draw.line(virtual_surf, theme_red, (150, 350), (850, 350), 3)
         
         # Draw moving core circle

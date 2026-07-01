@@ -9,7 +9,6 @@ class Day1Manager:
         try:
             bg_path = os.path.join("assets", "main.png")
             if os.path.exists(bg_path):
-                # 대형 이미지이므로 convert() 처리 후 1000x700 크기로 사전 스케일링
                 raw_bg = pygame.image.load(bg_path).convert()
                 self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
             else:
@@ -35,6 +34,29 @@ class Day1Manager:
         self.font_body = get_sys_font(korean_fonts, 20, bold=True)
         self.font_btn = get_sys_font(korean_fonts, 18, bold=True)
         
+    def get_main_ref(self):
+        settings = getattr(self, 'settings', None)
+        play_sfx = getattr(self, 'play_sfx', None)
+        go_to_main_menu = getattr(self, 'go_to_main_menu', None)
+        play_music_track = getattr(self, 'play_music_track', None)
+        
+        if not settings or not play_sfx or not go_to_main_menu or not play_music_track:
+            try:
+                import sys
+                main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+                if main_mod:
+                    if not settings:
+                        self.settings = getattr(main_mod, 'settings', None)
+                    if not play_sfx:
+                        self.play_sfx = getattr(main_mod, 'play_sfx', None)
+                    if not go_to_main_menu:
+                        self.go_to_main_menu = getattr(main_mod, 'go_to_main_menu', None)
+                    if not play_music_track:
+                        self.play_music_track = getattr(main_mod, 'play_music_track', None)
+            except:
+                pass
+        return True
+
     def reset(self):
         self.state = "INTRO_TEXT" # INTRO_TEXT, GLITCH_BG, WARNING_TOAST
         
@@ -134,8 +156,9 @@ class Day1Manager:
                 
                 if not playing:
                     try:
-                        from main import settings
-                        self.type_sound.set_volume(settings.volume)
+                        self.get_main_ref()
+                        settings = getattr(self, 'settings', None)
+                        self.type_sound.set_volume(settings.volume if settings else 0.5)
                     except:
                         self.type_sound.set_volume(0.5)
                     try:
@@ -170,25 +193,33 @@ class Day1Manager:
 
     def start_fire_game(self):
         self.stop_all_sounds()
+        self.get_main_ref()
+        
+        settings = getattr(self, 'settings', None)
+        play_sfx = getattr(self, 'play_sfx', None)
+        play_music_track = getattr(self, 'play_music_track', None)
         
         # 1. main.py 프레임워크를 통해 실행 중인 경우
-        try:
-            from main import settings, play_sfx
-            play_sfx("sfx_click")
-            # FIRE_GAME 상태로 변환 및 리셋 호출
-            settings.state = "FIRE_GAME"
-            if hasattr(settings, 'fire_game') and settings.fire_game:
-                settings.fire_game.reset()
-                
-                # 화재 미니게임 배경음 시작
-                try:
-                    from main import play_music_track, FIRE_MUSIC_PATH
-                    play_music_track(FIRE_MUSIC_PATH, fade_ms=0)
-                except Exception as e:
-                    print(f"화재진압 음악 재생 실패: {e}")
-            return
-        except Exception as e:
-            print(f"main 프레임워크를 통한 전환 실패 (단독 실행 모드 시도): {e}")
+        if settings and play_sfx:
+            try:
+                play_sfx("sfx_click")
+                # FIRE_GAME 상태로 변환 및 리셋 호출
+                settings.state = "FIRE_GAME"
+                if hasattr(settings, 'fire_game') and settings.fire_game:
+                    settings.fire_game.reset()
+                    
+                    # 화재 미니게임 배경음 시작
+                    if play_music_track:
+                        import sys
+                        fire_music_path = getattr(self, 'FIRE_MUSIC_PATH', getattr(sys.modules.get('main') or sys.modules.get('__main__'), 'FIRE_MUSIC_PATH', None))
+                        if fire_music_path:
+                            try:
+                                play_music_track(fire_music_path, fade_ms=0)
+                            except Exception as e:
+                                print(f"화재진압 음악 재생 실패: {e}")
+                return
+            except Exception as e:
+                print(f"주입된 프레임워크를 통한 전환 실패: {e}")
 
         # 2. day1.py 단독 실행 시 stage_1_fire.py를 서브프로세스로 직접 실행
         try:
@@ -225,8 +256,10 @@ class Day1Manager:
                 # 비상 경고음 재생
                 if self.alarm_sound:
                     try:
-                        from main import settings
-                        self.alarm_sound.set_volume(settings.volume * 0.8)
+                        self.get_main_ref()
+                        settings = getattr(self, 'settings', None)
+                        vol = settings.volume if settings else 0.5
+                        self.alarm_sound.set_volume(vol * 0.8)
                     except:
                         self.alarm_sound.set_volume(0.5)
                     try:
@@ -234,8 +267,10 @@ class Day1Manager:
                     except:
                         pass
                 try:
-                    from main import play_sfx
-                    play_sfx("sfx_crash")
+                    self.get_main_ref()
+                    play_sfx = getattr(self, 'play_sfx', None)
+                    if play_sfx:
+                        play_sfx("sfx_crash")
                 except:
                     pass
                     
@@ -243,13 +278,18 @@ class Day1Manager:
         pass
         
     def handle_event(self, event):
+        self.get_main_ref()
+        play_sfx = getattr(self, 'play_sfx', None)
+        go_to_main_menu = getattr(self, 'go_to_main_menu', None)
+        
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self.stop_all_sounds()
                 try:
-                    from main import go_to_main_menu, play_sfx
-                    play_sfx("sfx_end")
-                    go_to_main_menu()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_main_menu:
+                        go_to_main_menu()
                 except:
                     pass
                 return
@@ -270,14 +310,15 @@ class Day1Manager:
                         self.glitch_entered_ticks = pygame.time.get_ticks()
                         if self.glitch_sound:
                             try:
-                                from main import settings
-                                self.glitch_sound.set_volume(settings.volume * 0.7)
+                                settings = getattr(self, 'settings', None)
+                                vol = settings.volume if settings else 0.5
+                                self.glitch_sound.set_volume(vol * 0.7)
                                 self.glitch_sound.play(-1) # 루프 재생
                             except:
                                 pass
                         try:
-                            from main import play_sfx
-                            play_sfx("sfx_click")
+                            if play_sfx:
+                                play_sfx("sfx_click")
                         except:
                             pass
                     else:
@@ -286,8 +327,8 @@ class Day1Manager:
                         self.char_index = len(self.comments[-1])
                         self.displayed_lines = list(self.comments)
                         try:
-                            from main import play_sfx
-                            play_sfx("sfx_click")
+                            if play_sfx:
+                                play_sfx("sfx_click")
                         except:
                             pass
             elif self.state == "WARNING_TOAST":
@@ -298,9 +339,12 @@ class Day1Manager:
             if self.state == "WARNING_TOAST":
                 mx, my = event.pos
                 try:
-                    from main import settings
-                    vmx = int(mx * 1000 / settings.width)
-                    vmy = int(my * 700 / settings.height)
+                    settings = getattr(self, 'settings', None)
+                    if settings:
+                        vmx = int(mx * 1000 / settings.width)
+                        vmy = int(my * 700 / settings.height)
+                    else:
+                        vmx, vmy = mx, my
                 except:
                     vmx, vmy = mx, my
                     
@@ -310,6 +354,9 @@ class Day1Manager:
                     self.start_fire_game()
 
     def draw(self, surface):
+        self.get_main_ref()
+        settings = getattr(self, 'settings', None)
+        
         # 1000x700 가상 화면에 그림
         virtual_surf = pygame.Surface((1000, 700))
         
@@ -348,7 +395,6 @@ class Day1Manager:
                 
         elif self.state == "GLITCH_BG":
             # 멘트 없이 main.png만 나온 상태에서 지지직 거리는 특수 효과 연출
-            # 1. 가로 노이즈 밴드 및 픽셀 라인들
             if random.random() < 0.20:
                 for _ in range(random.randint(2, 6)):
                     y = random.randint(0, 700)
@@ -356,43 +402,35 @@ class Day1Manager:
                     w = random.randint(150, 1000)
                     x = random.randint(0, 1000 - w)
                     noise = pygame.Surface((w, h), pygame.SRCALPHA)
-                    # 반투명 지지직 노이즈
                     noise.fill((230, 230, 255, random.randint(90, 170)))
                     virtual_surf.blit(noise, (x, y))
             
-            # 2. RGB 글리치 색상 라인
             if random.random() < 0.12:
                 pygame.draw.line(virtual_surf, (255, 40, 40), (0, random.randint(0, 700)), (1000, random.randint(0, 700)), random.randint(1, 3))
             if random.random() < 0.12:
                 pygame.draw.line(virtual_surf, (30, 255, 60), (0, random.randint(0, 700)), (1000, random.randint(0, 700)), random.randint(1, 3))
             
-            # 3. 화면 지터/흔들림 계산
             if random.random() < 0.25:
                 shake_x = random.choice([-6, -3, 3, 6])
                 shake_y = random.choice([-4, -2, 2, 4])
                 
         elif self.state == "WARNING_TOAST":
-            # 비상 상황 경고 토스트 창 (중앙 정렬)
             box_w = 600
             box_h = 280
             box_x = (1000 - box_w) // 2
             box_y = (700 - box_h) // 2
             
-            # 반투명 짙은 적색 백그라운드
             toast_surf = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
             pygame.draw.rect(toast_surf, (20, 4, 4, 235), (0, 0, box_w, box_h), border_radius=16)
             
-            # 더블 테두리
             pygame.draw.rect(toast_surf, (255, 50, 40), (0, 0, box_w, box_h), 3, border_radius=16)
             pygame.draw.rect(toast_surf, (255, 120, 30), (4, 4, box_w - 8, box_h - 8), 1, border_radius=12)
             virtual_surf.blit(toast_surf, (box_x, box_y))
             
-            # 경고 헤더 텍스트
             header_str = "🚨 위험 상황 발생 🚨"
             header_surf = self.font_title.render(header_str, True, (255, 80, 60))
             virtual_surf.blit(header_surf, (500 - header_surf.get_width() // 2, box_y + 35))
             
-            # 위험 세부 내용
             line1 = "위험: 선체 내부에 불이 붙었습니다."
             line2 = "이동하여 문제를 해결하십시오."
             
@@ -402,12 +440,13 @@ class Day1Manager:
             s_surf2 = self.font_body.render(line2, True, (255, 220, 210))
             virtual_surf.blit(s_surf2, (500 - s_surf2.get_width() // 2, box_y + 145))
             
-            # 시작하기 버튼 렌더링 (마우스 호버 하이라이트 기능 추가)
             mx, my = pygame.mouse.get_pos()
             try:
-                from main import settings
-                vmx = int(mx * 1000 / settings.width)
-                vmy = int(my * 700 / settings.height)
+                if settings:
+                    vmx = int(mx * 1000 / settings.width)
+                    vmy = int(my * 700 / settings.height)
+                else:
+                    vmx, vmy = mx, my
             except:
                 vmx, vmy = mx, my
                 
@@ -415,12 +454,10 @@ class Day1Manager:
             is_hovered = btn_rect.collidepoint(vmx, vmy)
             
             if is_hovered:
-                # 호버 활성 시
                 pygame.draw.rect(virtual_surf, (255, 60, 40), btn_rect, border_radius=8)
                 pygame.draw.rect(virtual_surf, (255, 255, 255), btn_rect, 2, border_radius=8)
                 btn_txt_color = (255, 255, 255)
             else:
-                # 기본 상태
                 pygame.draw.rect(virtual_surf, (40, 10, 10), btn_rect, border_radius=8)
                 pygame.draw.rect(virtual_surf, (255, 80, 60), btn_rect, 2, border_radius=8)
                 btn_txt_color = (255, 160, 140)

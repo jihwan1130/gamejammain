@@ -34,6 +34,32 @@ class Day4Manager:
         self.font_body = get_sys_font(korean_fonts, 20, bold=True)
         self.font_btn = get_sys_font(korean_fonts, 18, bold=True)
         
+    def get_main_ref(self):
+        settings = getattr(self, 'settings', None)
+        play_sfx = getattr(self, 'play_sfx', None)
+        go_to_main_menu = getattr(self, 'go_to_main_menu', None)
+        play_music_track = getattr(self, 'play_music_track', None)
+        stage_mappings = getattr(self, 'stage_mappings', None)
+        
+        if not settings or not play_sfx or not go_to_main_menu or not play_music_track or not stage_mappings:
+            try:
+                import sys
+                main_mod = sys.modules.get('main') or sys.modules.get('__main__')
+                if main_mod:
+                    if not settings:
+                        self.settings = getattr(main_mod, 'settings', None)
+                    if not play_sfx:
+                        self.play_sfx = getattr(main_mod, 'play_sfx', None)
+                    if not go_to_main_menu:
+                        self.go_to_main_menu = getattr(main_mod, 'go_to_main_menu', None)
+                    if not play_music_track:
+                        self.play_music_track = getattr(main_mod, 'play_music_track', None)
+                    if not stage_mappings:
+                        self.stage_mappings = getattr(main_mod, 'stage_mappings', None)
+            except:
+                pass
+        return True
+
     def reset(self):
         self.state = "INTRO_TEXT" # INTRO_TEXT, GLITCH_BG, WARNING_TOAST
         
@@ -86,16 +112,14 @@ class Day4Manager:
         except Exception as e:
             print(f"8beep.MP3 사운드 로드 실패: {e}")
             
-        # 이번 라운드에 배정된 랜덤 게임 및 멘트 확인
+        # 이번 라운드에 배정된 랜덤 게임 및 멘트 확인 (동적 바인딩)
         self.assigned_game = None
         self.warning_lines = ["위험 상황이 발생했습니다.", "문제를 해결하십시오."]
         
-        try:
-            from main import settings
-            if hasattr(settings, 'random_day_games') and "DAY_4" in settings.random_day_games:
-                self.assigned_game = settings.random_day_games["DAY_4"]
-        except Exception as e:
-            print(f"main settings 로드 실패 (단독 실행 예상): {e}")
+        self.get_main_ref()
+        settings = getattr(self, 'settings', None)
+        if settings and hasattr(settings, 'random_day_games') and "DAY_4" in settings.random_day_games:
+            self.assigned_game = settings.random_day_games["DAY_4"]
 
         # 만약 단독 실행 등으로 배정된 게임이 없다면 랜덤으로 하나 선택
         if not self.assigned_game:
@@ -161,8 +185,8 @@ class Day4Manager:
                 
                 if not playing:
                     try:
-                        from main import settings
-                        self.type_sound.set_volume(settings.volume)
+                        settings = getattr(self, 'settings', None)
+                        self.type_sound.set_volume(settings.volume if settings else 0.5)
                     except:
                         self.type_sound.set_volume(0.5)
                     try:
@@ -197,28 +221,36 @@ class Day4Manager:
 
     def start_assigned_game(self):
         self.stop_all_sounds()
+        self.get_main_ref()
         
-        # 1. main.py 프레임워크를 통해 실행 중인 경우
-        try:
-            from main import settings, play_sfx, stage_mappings, play_music_track, SYSTEM_BGM_PATH, MINIGAME_MUSIC_PATH
-            play_sfx("sfx_click")
-            
-            settings.state = self.assigned_game
-            active_game = stage_mappings.get(self.assigned_game)
-            if active_game:
-                active_game.reset()
-                
-                # 게임별 음악 재생
-                try:
-                    if self.assigned_game == "ROBOT_GAME":
-                        play_music_track(SYSTEM_BGM_PATH, fade_ms=0)
-                    else:
-                        play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
-                except Exception as e:
-                    print(f"음악 재생 실패: {e}")
-            return
-        except Exception as e:
-            print(f"main 프레임워크를 통한 전환 실패 (단독 실행 모드 시도): {e}")
+        settings = getattr(self, 'settings', None)
+        play_sfx = getattr(self, 'play_sfx', None)
+        stage_mappings = getattr(self, 'stage_mappings', None)
+        play_music_track = getattr(self, 'play_music_track', None)
+        
+        # 1. 프레임워크 상에서 실행
+        if settings and play_sfx and stage_mappings:
+            try:
+                play_sfx("sfx_click")
+                settings.state = self.assigned_game
+                active_game = stage_mappings.get(self.assigned_game)
+                if active_game:
+                    active_game.reset()
+                    
+                    # 음악 재생
+                    if play_music_track:
+                        system_bgm = getattr(self, 'SYSTEM_BGM_PATH', getattr(sys.modules.get('main') or sys.modules.get('__main__'), 'SYSTEM_BGM_PATH', None))
+                        minigame_bgm = getattr(self, 'MINIGAME_MUSIC_PATH', getattr(sys.modules.get('main') or sys.modules.get('__main__'), 'MINIGAME_MUSIC_PATH', None))
+                        try:
+                            if self.assigned_game == "ROBOT_GAME" and system_bgm:
+                                play_music_track(system_bgm, fade_ms=0)
+                            elif minigame_bgm:
+                                play_music_track(minigame_bgm, fade_ms=0)
+                        except Exception as e:
+                            print(f"음악 재생 실패: {e}")
+                return
+            except Exception as e:
+                print(f"프레임워크 상태 전환 실패: {e}")
 
         # 2. day4.py 단독 실행 시 해당 게임을 서브프로세스로 직접 실행
         game_files = {
@@ -234,7 +266,6 @@ class Day4Manager:
         if target_file:
             try:
                 import subprocess
-                import sys
                 script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), target_file)
                 if not os.path.exists(script_path):
                     script_path = target_file
@@ -264,8 +295,9 @@ class Day4Manager:
                 # 비상 경고음 재생
                 if self.alarm_sound:
                     try:
-                        from main import settings
-                        self.alarm_sound.set_volume(settings.volume * 0.8)
+                        settings = getattr(self, 'settings', None)
+                        vol = settings.volume if settings else 0.5
+                        self.alarm_sound.set_volume(vol * 0.8)
                     except:
                         self.alarm_sound.set_volume(0.5)
                     try:
@@ -273,8 +305,9 @@ class Day4Manager:
                     except:
                         pass
                 try:
-                    from main import play_sfx
-                    play_sfx("sfx_crash")
+                    play_sfx = getattr(self, 'play_sfx', None)
+                    if play_sfx:
+                        play_sfx("sfx_crash")
                 except:
                     pass
                     
@@ -282,13 +315,18 @@ class Day4Manager:
         pass
         
     def handle_event(self, event):
+        self.get_main_ref()
+        play_sfx = getattr(self, 'play_sfx', None)
+        go_to_main_menu = getattr(self, 'go_to_main_menu', None)
+        
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 self.stop_all_sounds()
                 try:
-                    from main import go_to_main_menu, play_sfx
-                    play_sfx("sfx_end")
-                    go_to_main_menu()
+                    if play_sfx:
+                        play_sfx("sfx_end")
+                    if go_to_main_menu:
+                        go_to_main_menu()
                 except:
                     pass
                 return
@@ -309,14 +347,15 @@ class Day4Manager:
                         self.glitch_entered_ticks = pygame.time.get_ticks()
                         if self.glitch_sound:
                             try:
-                                from main import settings
-                                self.glitch_sound.set_volume(settings.volume * 0.7)
+                                settings = getattr(self, 'settings', None)
+                                vol = settings.volume if settings else 0.5
+                                self.glitch_sound.set_volume(vol * 0.7)
                                 self.glitch_sound.play(-1) # 루프 재생
                             except:
                                 pass
                         try:
-                            from main import play_sfx
-                            play_sfx("sfx_click")
+                            if play_sfx:
+                                play_sfx("sfx_click")
                         except:
                             pass
                     else:
@@ -325,8 +364,8 @@ class Day4Manager:
                         self.char_index = len(self.comments[-1])
                         self.displayed_lines = list(self.comments)
                         try:
-                            from main import play_sfx
-                            play_sfx("sfx_click")
+                            if play_sfx:
+                                play_sfx("sfx_click")
                         except:
                             pass
             elif self.state == "WARNING_TOAST":
@@ -337,9 +376,12 @@ class Day4Manager:
             if self.state == "WARNING_TOAST":
                 mx, my = event.pos
                 try:
-                    from main import settings
-                    vmx = int(mx * 1000 / settings.width)
-                    vmy = int(my * 700 / settings.height)
+                    settings = getattr(self, 'settings', None)
+                    if settings:
+                        vmx = int(mx * 1000 / settings.width)
+                        vmy = int(my * 700 / settings.height)
+                    else:
+                        vmx, vmy = mx, my
                 except:
                     vmx, vmy = mx, my
                     
@@ -349,7 +391,9 @@ class Day4Manager:
                     self.start_assigned_game()
 
     def draw(self, surface):
-        # 1000x700 가상 화면에 그림
+        self.get_main_ref()
+        settings = getattr(self, 'settings', None)
+        
         virtual_surf = pygame.Surface((1000, 700))
         
         if self.bg_img:
@@ -357,7 +401,6 @@ class Day4Manager:
         else:
             virtual_surf.fill((10, 10, 15))
             
-        # 흔들림 효과 변수
         shake_x = 0
         shake_y = 0
             
@@ -433,9 +476,11 @@ class Day4Manager:
             
             mx, my = pygame.mouse.get_pos()
             try:
-                from main import settings
-                vmx = int(mx * 1000 / settings.width)
-                vmy = int(my * 700 / settings.height)
+                if settings:
+                    vmx = int(mx * 1000 / settings.width)
+                    vmy = int(my * 700 / settings.height)
+                else:
+                    vmx, vmy = mx, my
             except:
                 vmx, vmy = mx, my
                 
