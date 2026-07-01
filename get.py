@@ -60,6 +60,11 @@ class ResourcesGame:
         except Exception as e:
             print(f"clearsoundd.MP3 로드 실패: {e}")
             
+        try:
+            self.change_sfx = pygame.mixer.Sound(os.path.join("assets", "change.MP3"))
+        except Exception as e:
+            print(f"change.MP3 로드 실패: {e}")
+            
         self.is_playing_run_sfx = False
         
         self.reset()
@@ -137,8 +142,18 @@ class ResourcesGame:
     def play_clearsoundd_sfx(self):
         if self.clear_sfx:
             from main import settings
-            self.clear_sfx.set_volume(settings.volume)
+            # 해당 게임 내에서만 볼륨을 2.0배 증폭 (최대 1.0)
+            vol = min(1.0, settings.volume * 2.0)
+            self.clear_sfx.set_volume(vol)
             self.clear_sfx.play()
+
+    def play_change_sfx(self):
+        if self.change_sfx:
+            from main import settings
+            # 해당 게임 내에서만 볼륨을 지금보다 2배 더 증폭 (최대 1.0, 4.0배)
+            vol = min(1.0, settings.volume * 4.0)
+            self.change_sfx.set_volume(vol)
+            self.change_sfx.play()
         
     def generate_planned_city(self):
         self.obstacles.clear()
@@ -229,7 +244,7 @@ class ResourcesGame:
                 w, h = settings.width, settings.height
                 dialog_w, dialog_h = 750, 400
                 dialog_rect = pygame.Rect((w - dialog_w)//2, (h - dialog_h)//2, dialog_w, dialog_h)
-                btn_w, btn_h = 220, 50
+                btn_w, btn_h = 320, 50
                 btn_rect = pygame.Rect((w - btn_w)//2, dialog_rect.bottom - 75, btn_w, btn_h)
                 if btn_rect.collidepoint(event.pos):
                     self.state = "PLAYING"
@@ -252,6 +267,17 @@ class ResourcesGame:
                     play_sfx("sfx_end")
                 elif event.key == pygame.K_RETURN and self.is_clear_finished():
                     self.reset()
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.is_cleared:
+                    w, h = settings.width, settings.height
+                    dialog_w, dialog_h = 750, 420
+                    dialog_rect = pygame.Rect((w - dialog_w)//2, (h - dialog_h)//2, dialog_w, dialog_h)
+                    btn_w, btn_h = 320, 50
+                    btn_rect = pygame.Rect((w - btn_w)//2, dialog_rect.bottom - 75, btn_w, btn_h)
+                    if btn_rect.collidepoint(event.pos):
+                        self.stop_run_sound()
+                        go_to_minigames()
+                        play_sfx("sfx_end")
                     
     def is_clear_finished(self):
         return self.is_cleared
@@ -263,10 +289,16 @@ class ResourcesGame:
         keys = pygame.key.get_pressed()
         speed = 5.8  # 난이도 조절: 최대한 열심히 움직여도 주황색 자원들을 평균 130정도까지 모을 수 있도록 속도 조절
         dx, dy = 0, 0
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]: dx = -speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]: dx = speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]: dy = -speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]: dy = speed
+        
+        # 대각선 이동 방지: 한 번에 한 축으로만 이동 가능하도록 설정
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            dx = -speed
+        elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            dx = speed
+        elif keys[pygame.K_UP] or keys[pygame.K_w]:
+            dy = -speed
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            dy = speed
         
         self.player_rect.x += dx
         for b in self.obstacles:
@@ -344,7 +376,7 @@ class ResourcesGame:
                             available_res = ["산소", "전기", "정신력"]
                         chosen_res = random.choice(available_res)
                         self.resources[chosen_res] = min(200, self.resources[chosen_res] + 5)
-                        play_sfx("sfx_change")
+                        self.play_change_sfx()
                     self.items.remove(item)
         self.update_run_sound()
                     
@@ -504,12 +536,29 @@ class ResourcesGame:
         pass
         
         if not self.is_cleared:
-            self.draw_text(surface, f"남은 시간: {int(remain)}초", font_main, self.ORANGE, 20, 20)
+            self.draw_text(surface, "남은 시간:", font_main, self.ORANGE, 20, 20)
+            
+            # 시간 프로그레스 바 그리기 (길이를 550으로 확장)
+            time_ratio = max(0.0, remain / 30.0)
+            bar_max_w = 550
+            bar_h = 18
+            bar_x = 145
+            bar_y = 25
+            
+            # 프로그레스 바 테두리
+            pygame.draw.rect(surface, self.ORANGE, (bar_x, bar_y, bar_max_w, bar_h), 2)
+            # 프로그레스 바 내부 채우기
+            fill_w = int(bar_max_w * time_ratio)
+            if fill_w > 0:
+                # 남은 시간에 따라 색상 변경 (녹색 -> 주황색 -> 적색)
+                bar_color = self.GREEN if time_ratio > 0.5 else (self.ORANGE if time_ratio > 0.2 else self.RED)
+                pygame.draw.rect(surface, bar_color, (bar_x + 2, bar_y + 2, fill_w - 4, bar_h - 4))
         else:
             self.draw_text(surface, "★ 파밍 종료 (CLEAR) ★ - 다음 프로젝트 씬 연동 대기 중", font_main, self.GREEN, 20, 20)
             
-        self.draw_text(surface, f"탑승 인원: {', '.join(self.my_crew)}", font_small, self.WHITE, 20, 60)
-        self.draw_text(surface, f"산소: {self.resources['산소']}/200 | 전기: {self.resources['전기']}/200 | 정신력: {self.resources['정신력']}/200", font_small, self.WHITE, 20, 90)
+        # 가독성과 비중첩을 위해 y좌표 간격을 넓혀서 조정
+        self.draw_text(surface, f"탑승 인원: {', '.join(self.my_crew)}", font_small, self.WHITE, 20, 65)
+        self.draw_text(surface, f"산소: {self.resources['산소']}/200 | 전기: {self.resources['전기']}/200 | 정신력: {self.resources['정신력']}/200", font_small, self.WHITE, 20, 95)
         
         # INTRO popup dialog overlay
         if self.state == "INTRO":
@@ -551,7 +600,7 @@ class ResourcesGame:
                 self.draw_text(surface, line, font_body, color, w//2, y_offset, center=True)
                 y_offset += 30
                 
-            btn_w, btn_h = 220, 50
+            btn_w, btn_h = 320, 50
             btn_rect = pygame.Rect((w - btn_w)//2, dialog_rect.bottom - 75, btn_w, btn_h)
             
             mouse_pos = pygame.mouse.get_pos()
@@ -562,6 +611,62 @@ class ResourcesGame:
             pygame.draw.rect(surface, self.WHITE, btn_rect, width=2, border_radius=5)
             
             self.draw_text(surface, "시작하기 (Space/Enter)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
+
+        # CLEAR popup dialog overlay
+        if self.is_cleared:
+            overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            surface.blit(overlay, (0, 0))
+            
+            dialog_w, dialog_h = 750, 420
+            dialog_rect = pygame.Rect((w - dialog_w)//2, (h - dialog_h)//2, dialog_w, dialog_h)
+            
+            pygame.draw.rect(surface, (20, 30, 20), dialog_rect, border_radius=10)
+            pygame.draw.rect(surface, self.GREEN, dialog_rect, width=3, border_radius=10)
+            
+            font_title = get_scaled_font(28, is_korean=True)
+            font_body = get_scaled_font(18, is_korean=True)
+            font_button = get_scaled_font(20, is_korean=True)
+            
+            self.draw_text(surface, "🎉 긴급 파밍 종료 (CLEAR)", font_title, self.GREEN, w//2, dialog_rect.top + 40, center=True)
+            
+            # Crew summary
+            crew_str = ", ".join(self.my_crew) if self.my_crew else "없음"
+            
+            summary_lines = [
+                "우주선 긴급 대피를 위한 자원 및 인원 수집 결과입니다.",
+                "",
+                f"👥 탑승한 크루원 ({len(self.my_crew)}명):",
+                f"   {crew_str}",
+                "",
+                "🔋 최종 수집 자원 상태:",
+                f"   산소: {self.resources['산소']}/200  |  전기: {self.resources['전기']}/200  |  정신력: {self.resources['정신력']}/200",
+            ]
+            
+            y_offset = dialog_rect.top + 100
+            for line in summary_lines:
+                color = self.WHITE
+                if "수집 결과" in line:
+                    color = self.WHITE
+                elif "탑승한 크루원" in line:
+                    color = self.GREEN
+                elif "최종 수집 자원" in line:
+                    color = self.ORANGE
+                self.draw_text(surface, line, font_body, color, w//2, y_offset, center=True)
+                y_offset += 30
+                
+            # Exit button guide
+            btn_w, btn_h = 320, 50
+            btn_rect = pygame.Rect((w - btn_w)//2, dialog_rect.bottom - 75, btn_w, btn_h)
+            
+            mouse_pos = pygame.mouse.get_pos()
+            hover = btn_rect.collidepoint(mouse_pos)
+            
+            btn_color = (40, 150, 180) if hover else (30, 110, 140)
+            pygame.draw.rect(surface, btn_color, btn_rect, border_radius=5)
+            pygame.draw.rect(surface, self.WHITE, btn_rect, width=2, border_radius=5)
+            
+            self.draw_text(surface, "종료하기 (ESC 키 입력)", font_button, self.WHITE, w//2, btn_rect.centery, center=True)
 
     @property
     def minigame_start_time(self):

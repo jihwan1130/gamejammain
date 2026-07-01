@@ -5,12 +5,12 @@ class GravityHullRepairGame:
         self.key_map = {pygame.K_d: 'D', pygame.K_f: 'F', pygame.K_j: 'J', pygame.K_k: 'K'}
         self.bg_img = None
         try:
-            bg_path = os.path.join("assets", "Stage_9.png")
+            bg_path = os.path.join("assets", "atom.jpg")
             if os.path.exists(bg_path):
                 raw_bg = pygame.image.load(bg_path).convert()
                 self.bg_img = pygame.transform.scale(raw_bg, (1000, 700))
         except Exception as e:
-            print(f"Stage_9.png 로드 실패: {e}")
+            print(f"atom.jpg 로드 실패: {e}")
         self.reset()
         
     def get_new_target(self):

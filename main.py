@@ -644,8 +644,9 @@ class ScanlineEffect:
             
             # 2. 비네팅 (화면 가장자리를 어둡게 깎아 볼록 모니터 입체감 형성)
             # 모서리 그라데이션 대신 단순 외곽 섀도우 박스로 빈티지 연출
-            border_w = int(self.width * 0.02)
-            pygame.draw.rect(self.overlay, (0, 0, 0, 120), (0, 0, self.width, self.height), border_w)
+            # border_w = int(self.width * 0.02)
+            # pygame.draw.rect(self.overlay, (0, 0, 0, 120), (0, 0, self.width, self.height), border_w)
+            pass
                 
     def draw(self, surface):
         self.update_overlay()
@@ -1792,6 +1793,9 @@ def main():
                                     play_music_track(FIRE_MUSIC_PATH, fade_ms=0)
                                 elif state_name == "ROBOT_GAME":
                                     play_music_track(SYSTEM_BGM_PATH, fade_ms=0)
+                                elif state_name == "RESOURCE_GAME":
+                                    pygame.mixer.music.stop()
+                                    settings.current_music_path = None
                                 else:
                                     play_music_track(MINIGAME_MUSIC_PATH, fade_ms=0)
                                 play_sfx("sfx_change")
