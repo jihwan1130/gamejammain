@@ -31,6 +31,34 @@ def load_and_scale_gif(filepath, size):
         scaled_frames.append(fallback)
     return scaled_frames
 
+class TrackingDict(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.consumed = 0
+        
+    def __setitem__(self, key, value):
+        if key in self:
+            old_val = self[key]
+            if value < old_val:
+                self.consumed += (old_val - value)
+        super().__setitem__(key, value)
+
+class TrackingList(list):
+    def __init__(self, *args, parent=None):
+        super().__init__(*args)
+        self.parent = parent
+        
+    def remove(self, value):
+        if value in self:
+            if self.parent:
+                self.parent.dead_count += 1
+        super().remove(value)
+        
+    def pop(self, index=-1):
+        if self.parent:
+            self.parent.dead_count += 1
+        return super().pop(index)
+
 class ResourcesGame:
     def __init__(self):
         # Cache for optimized text rendering
@@ -97,9 +125,9 @@ class ResourcesGame:
         # Game data from 2.py
         self.crew_base = ["의사", "기술자", "경찰", "천문학자"]
         self.crew_farmable = ["정치인", "생명 유지장치 기술자", "개발자", "전기 기술자"]
-        self.resources = {"산소": 80, "전기": 80, "정신력": 80}
-        self.my_crew = list(self.crew_base)
         self.dead_count = 0
+        self.resources = TrackingDict({"산소": 80, "전기": 80, "정신력": 80})
+        self.my_crew = TrackingList(self.crew_base, parent=self)
         
         # Tracking newly collected crew and resources
         self.collected_crew = []

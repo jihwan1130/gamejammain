@@ -997,6 +997,36 @@ class Day10Manager:
             if (pygame.time.get_ticks() // 500) % 2 == 0:
                 virtual_surf.blit(sub_surf, (500 - sub_surf.get_width()//2, panel_y + 230))
 
+            # 최종 통계 토스트 메시지 드로잉 (기존 토스트 디자인 차용)
+            stats_w = 700
+            stats_h = 110
+            stats_x = (1000 - stats_w) // 2
+            stats_y = 515
+            
+            stats_surf = pygame.Surface((stats_w, stats_h), pygame.SRCALPHA)
+            pygame.draw.rect(stats_surf, (20, 4, 4, 235), (0, 0, stats_w, stats_h), border_radius=16)
+            pygame.draw.rect(stats_surf, (255, 50, 40), (0, 0, stats_w, stats_h), 3, border_radius=16)
+            pygame.draw.rect(stats_surf, (255, 120, 30), (4, 4, stats_w - 8, stats_h - 8), 1, border_radius=12)
+            virtual_surf.blit(stats_surf, (stats_x, stats_y))
+            
+            resources_game = get_main_val('resources_game')
+            consumed_resources = 0
+            dead_crew_count = 0
+            if resources_game:
+                if hasattr(resources_game, 'resources') and hasattr(resources_game.resources, 'consumed'):
+                    consumed_resources = resources_game.resources.consumed
+                if hasattr(resources_game, 'dead_count'):
+                    dead_crew_count = resources_game.dead_count
+            
+            stats_title = "📊 여정의 기록 (최종 통계) 📊"
+            stats_content = f"최종 소비 자원: {consumed_resources} | 희생시킨 대원: {dead_crew_count}명"
+            
+            title_render = self.font_body.render(stats_title, True, (255, 180, 50))
+            content_render = self.font_body.render(stats_content, True, (255, 240, 220))
+            
+            virtual_surf.blit(title_render, (500 - title_render.get_width() // 2, stats_y + 20))
+            virtual_surf.blit(content_render, (500 - content_render.get_width() // 2, stats_y + 60))
+
         scaled_surf = pygame.transform.scale(virtual_surf, surface.get_size())
         surface.fill((0, 0, 0))
         surface.blit(scaled_surf, (shake_x, shake_y))
