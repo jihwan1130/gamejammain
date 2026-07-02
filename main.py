@@ -76,8 +76,6 @@ class GameSettings:
         self.minigame_pause_started_at = 0
         self.global_pause_resume_rect = pygame.Rect(0, 0, 0, 0)
         self.global_pause_exit_rect = pygame.Rect(0, 0, 0, 0)
-        self.semicolon_pressed_time = 0
-        self.speed_cheat_active = False
         
         # 랜덤 Day (2, 3, 4, 6) 게임 배정 (중복 불가)
         candidates = ["GRAVITY_GAME", "OVERHEAT_GAME", "ROBOT_GAME", "RIOT_GAME", "NAV_GAME", "ELECTRIC_GAME", "QUARANTINE_GAME", "METEOR_GAME"]
@@ -1664,31 +1662,6 @@ def main():
                 else:
                     go_to_main_menu()
 
-        
-        # Semicolon cheat key press duration tracking
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_SEMICOLON]:
-            if settings.semicolon_pressed_time == 0:
-                settings.semicolon_pressed_time = current_real_time
-            else:
-                elapsed_press = current_real_time - settings.semicolon_pressed_time
-                if elapsed_press >= 2000: # 2 seconds
-                    settings.speed_cheat_active = True
-        else:
-            settings.semicolon_pressed_time = 0
-            settings.speed_cheat_active = False
-            
-        # Shift timers when speed cheat is active (forces game clock to run at 2x speed)
-        if settings.speed_cheat_active and not settings.minigame_paused:
-            active_game = stage_mappings.get(settings.state)
-            if active_game:
-                active_game.start_ticks -= real_dt
-            elif settings.state == "RESOURCE_GAME":
-                resources_game.farm_start_time -= real_dt
-                resources_game.minigame_start_time -= real_dt
-            elif settings.state == "METEOR_GAME":
-                meteor_game.start_ticks -= real_dt
-                
         # Check for resource depletion game over
         if settings.is_campaign and settings.state != "RESOURCE_DEPLETED":
             if hasattr(settings, 'resources_game') and settings.resources_game:
@@ -1704,15 +1677,6 @@ def main():
         
         events = pygame.event.get()
         for event in events:
-            # ================= QA CHEAT SKIP BUTTON CLICK HANDLER (EASY TO DELETE) =================
-            if settings.is_campaign and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                qa_btn_rect = pygame.Rect(settings.width - 160, 20, 140, 35)
-                if qa_btn_rect.collidepoint(event.pos):
-                    print(f"[QA CHEAT] Skipping from {settings.state} / Day {settings.current_day} to the next day.")
-                    play_sfx("sfx_click")
-                    next_campaign_day()
-                    continue
-            # =======================================================================================
             if event.type == pygame.QUIT:
                 running = False
             
@@ -2771,18 +2735,6 @@ def main():
                 settings.screen.blit(panel_surf, (panel_x, panel_y))
         # =============================================================
 
-        # ================= QA CHEAT SKIP BUTTON DRAWING (EASY TO DELETE) =================
-        if settings.is_campaign:
-            qa_btn_rect = pygame.Rect(settings.width - 160, 20, 140, 35)
-            pygame.draw.rect(settings.screen, (30, 15, 15), qa_btn_rect)
-            pygame.draw.rect(settings.screen, (255, 80, 80), qa_btn_rect, 2)
-            
-            qa_font = get_scaled_font(14, is_korean=True)
-            qa_text = qa_font.render("[QA] 다음 날로", True, (255, 120, 120))
-            qa_text_rect = qa_text.get_rect(center=qa_btn_rect.center)
-            settings.screen.blit(qa_text, qa_text_rect)
-        # =========================================================================
-        
         # 3. 브라운관 전자 빔 및 스캔라인/비네팅 오버레이 필터
         beam.draw(settings.screen)
         scanlines.draw(settings.screen)
@@ -2793,8 +2745,7 @@ def main():
         settings.screen.blit(credit_surf, (settings.width - credit_surf.get_width() - 30, settings.height - 30))
         
         pygame.display.flip()
-        target_fps = 120 if settings.speed_cheat_active else 60
-        clock.tick(target_fps)
+        clock.tick(60)
 
     pygame.quit()
 
